@@ -33,7 +33,6 @@ class WineFridgeApp extends StatelessWidget {
           primary: Colors.red[400]!,
           secondary: Colors.red[200]!,
           surface: const Color(0xFF1E1E1E),
-          background: Colors.black,
         ),
         scaffoldBackgroundColor: Colors.black,
         textTheme: GoogleFonts.poppinsTextTheme(
@@ -1842,8 +1841,9 @@ Future<void> _showBottleDetails(WineBottle bottle) async {
           // Add year and rating in parentheses if available
           List<String> details = [];
           if (bottle.year != null) details.add(bottle.year!);
-          if (bottle.rating != null)
+          if (bottle.rating != null) {
             details.add('${bottle.rating!.toStringAsFixed(1)}★');
+          }
 
           if (details.isNotEmpty) {
             shareText.write(' (${details.join(' • ')})');
