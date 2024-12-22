@@ -1,0 +1,5660 @@
+--- Start of File: ./core/models/wine_type.dart ---
+enum WineType { red, white, sparkling, rose, dessert }
+--- End of File: ./core/models/wine_type.dart ---
+--- Start of File: ./core/theme/app_theme.dart ---
+// lib/core/theme/app_theme.dart
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+class AppTheme {
+  static ThemeData get darkTheme => ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.dark(
+          primary: Colors.red[400]!,
+          secondary: Colors.red[200]!,
+          surface: const Color(0xFF1E1E1E),
+        ),
+        scaffoldBackgroundColor: Colors.black,
+        textTheme: GoogleFonts.poppinsTextTheme(
+          ThemeData.dark().textTheme,
+        ),
+        cardTheme: CardTheme(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          color: const Color(0xFF1E1E1E),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.black,
+          elevation: 0,
+          centerTitle: false,
+        ),
+      );
+}
+
+--- End of File: ./core/theme/app_theme.dart ---
+--- Start of File: ./core/widgets/dismiss_keyboard_wrapper.dart ---
+import 'package:flutter/material.dart';
+
+class DismissKeyboardWrapper extends StatelessWidget {
+  final Widget child;
+
+  const DismissKeyboardWrapper({
+    super.key,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        final currentFocus = FocusScope.of(context);
+        if (!currentFocus.hasPrimaryFocus && currentFocus.focusedChild != null) {
+          FocusManager.instance.primaryFocus?.unfocus();
+        }
+      },
+      child: child,
+    );
+  }
+}
+
+--- End of File: ./core/widgets/dismiss_keyboard_wrapper.dart ---
+--- Start of File: ./features/auth/data/repositories/auth_repository.dart ---
+// lib/features/auth/data/repositories/auth_repository.dart
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../domain/models/app_user.dart';
+
+class AuthRepository {
+  final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  Stream<AppUser?> get authStateChanges {
+    return _auth.authStateChanges().map((firebase_auth.User? firebaseUser) {
+      if (firebaseUser == null) return null;
+      
+      return AppUser(
+        id: firebaseUser.uid,
+        email: firebaseUser.email ?? '',
+        displayName: firebaseUser.displayName,
+        photoUrl: firebaseUser.photoURL,
+      );
+    });
+  }
+
+  Future<AppUser?> signInWithEmailAndPassword(String email, String password) async {
+    try {
+      print('Attempting sign in with email: $email');
+
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      final firebaseUser = userCredential.user;
+      if (firebaseUser == null) {
+        print('No user returned from Firebase Auth');
+        return null;
+      }
+
+      // Verify or create user document
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(firebaseUser.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        // Create user document if it doesn't exist
+        final userData = {
+          'id': firebaseUser.uid,
+          'email': firebaseUser.email,
+          'displayName': firebaseUser.displayName,
+          'photoUrl': firebaseUser.photoURL,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        
+        await _firestore
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .set(userData);
+      }
+
+      return AppUser(
+        id: firebaseUser.uid,
+        email: firebaseUser.email ?? '',
+        displayName: firebaseUser.displayName,
+        photoUrl: firebaseUser.photoURL,
+      );
+    } catch (e) {
+      print('Sign in error: $e');
+      rethrow;
+    }
+  }
+
+  Future<AppUser?> createUserWithEmailAndPassword(String email, String password) async {
+    try {
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final firebaseUser = userCredential.user;
+      if (firebaseUser == null) throw Exception('Failed to create user');
+
+      final appUser = AppUser(
+        id: firebaseUser.uid,
+        email: firebaseUser.email ?? '',
+        displayName: firebaseUser.displayName,
+        photoUrl: firebaseUser.photoURL,
+      );
+
+      await _firestore.collection('users').doc(appUser.id).set({
+        'id': appUser.id,
+        'email': appUser.email,
+        'displayName': appUser.displayName,
+        'photoUrl': appUser.photoUrl,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return appUser;
+    } catch (e) {
+      print('Create user error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      await _auth.signOut();
+    } catch (e) {
+      print('Sign out error: $e');
+      rethrow;
+    }
+  }
+}
+--- End of File: ./features/auth/data/repositories/auth_repository.dart ---
+--- Start of File: ./features/auth/domain/models/auth_exception.dart ---
+class AuthException implements Exception {
+  final String message;
+  final String code;
+
+  AuthException({
+    required this.message,
+    required this.code,
+  });
+
+  factory AuthException.fromCode(String code) {
+    switch (code) {
+      // Sign In Errors
+      case 'user-not-found':
+        return AuthException(
+          code: code,
+          message: 'No user found with this email.',
+        );
+      case 'wrong-password':
+        return AuthException(
+          code: code,
+          message: 'Wrong password provided.',
+        );
+      case 'user-disabled':
+        return AuthException(
+          code: code,
+          message: 'This account has been disabled.',
+        );
+      case 'too-many-requests':
+        return AuthException(
+          code: code,
+          message: 'Too many attempts. Please try again later.',
+        );
+
+      // Sign Up Errors
+      case 'email-already-in-use':
+        return AuthException(
+          code: code,
+          message: 'An account already exists with this email.',
+        );
+      case 'invalid-email':
+        return AuthException(
+          code: code,
+          message: 'Please enter a valid email address.',
+        );
+      case 'weak-password':
+        return AuthException(
+          code: code,
+          message: 'The password provided is too weak.',
+        );
+      case 'operation-not-allowed':
+        return AuthException(
+          code: code,
+          message: 'Email/password accounts are not enabled.',
+        );
+
+      // Password Reset Errors
+      case 'expired-action-code':
+        return AuthException(
+          code: code,
+          message: 'The password reset code has expired.',
+        );
+      case 'invalid-action-code':
+        return AuthException(
+          code: code,
+          message: 'The password reset code is invalid.',
+        );
+
+      // Update Profile Errors
+      case 'requires-recent-login':
+        return AuthException(
+          code: code,
+          message: 'Please sign in again to complete this action.',
+        );
+
+      // Network Errors
+      case 'network-request-failed':
+        return AuthException(
+          code: code,
+          message: 'Network error. Please check your connection.',
+        );
+
+      // Default Error
+      default:
+        return AuthException(
+          code: code,
+          message: 'An error occurred. Please try again.',
+        );
+    }
+  }
+
+  @override
+  String toString() => message;
+}
+--- End of File: ./features/auth/domain/models/auth_exception.dart ---
+--- Start of File: ./features/auth/domain/models/app_user.dart ---
+// lib/features/auth/domain/models/app_user.dart
+class AppUser {
+  final String id;
+  final String email;
+  final String? displayName;
+  final String? photoUrl;
+
+  const AppUser({
+    required this.id,
+    required this.email,
+    this.displayName,
+    this.photoUrl,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'email': email,
+      'displayName': displayName,
+      'photoUrl': photoUrl,
+    };
+  }
+}
+--- End of File: ./features/auth/domain/models/app_user.dart ---
+--- Start of File: ./features/auth/presentation/providers/auth_provider.dart ---
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import '../../data/repositories/auth_repository.dart';
+import '../../domain/models/app_user.dart';
+
+class AuthProvider extends ChangeNotifier {
+  final AuthRepository _authRepository;
+  AppUser? _user;
+  bool _isLoading = false;
+  StreamSubscription<AppUser?>? _authSubscription;
+
+  AuthProvider(this._authRepository) {
+    _initAuthState();
+  }
+
+  void _initAuthState() {
+    _authSubscription?.cancel();
+    _authSubscription = _authRepository.authStateChanges.listen(
+      (user) {
+        print('Auth state changed: ${user?.id}'); // Debug log
+        _user = user;
+        notifyListeners();
+      },
+      onError: (error) {
+        print('Auth state error: $error'); // Debug log
+        _user = null;
+        notifyListeners();
+      }
+    );
+  }
+
+  AppUser? get user => _user;
+  bool get isAuthenticated => _user != null;
+  bool get isLoading => _isLoading;
+
+Future<void> signIn(String email, String password) async {
+  try {
+    print('AuthProvider: Starting sign in process...'); // Debug log
+    _isLoading = true;
+    notifyListeners();
+    
+    final user = await _authRepository.signInWithEmailAndPassword(
+      email, 
+      password,
+    );
+    
+    print('AuthProvider: Sign in successful, user: ${user?.id}'); // Debug log
+    _user = user;
+    notifyListeners();
+    print('AuthProvider: Notified listeners after sign in'); // Debug log
+  } catch (e) {
+    print('AuthProvider: Sign in error: $e'); // Debug log
+    rethrow;
+  } finally {
+    _isLoading = false;
+    notifyListeners();
+    print('AuthProvider: Sign in process completed'); // Debug log
+  }
+}
+
+  Future<void> signUp(String email, String password) async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      final user = await _authRepository.createUserWithEmailAndPassword(
+        email, 
+        password,
+      );
+      
+      _user = user;
+      notifyListeners();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      await _authRepository.signOut();
+      _user = null;
+      notifyListeners();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+}
+
+--- End of File: ./features/auth/presentation/providers/auth_provider.dart ---
+--- Start of File: ./features/auth/presentation/screens/sign_up_screen.dart ---
+// lib/features/auth/presentation/screens/sign_up_screen.dart
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+
+class SignUpScreen extends StatefulWidget {
+  const SignUpScreen({super.key});
+
+  @override
+  State<SignUpScreen> createState() => _SignUpScreenState();
+}
+
+class _SignUpScreenState extends State<SignUpScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 40),
+                  Text(
+                    'Create Account',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Join and start your wine collection',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[400],
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      labelStyle: TextStyle(color: Colors.grey[400]),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[800]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.red[400]!),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your email';
+                      }
+                      if (!value.contains('@') || !value.contains('.')) {
+                        return 'Please enter a valid email';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: !_isPasswordVisible,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      labelStyle: TextStyle(color: Colors.grey[400]),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[800]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.red[400]!),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.grey[400],
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter a password';
+                      }
+                      if (value.length < 6) {
+                        return 'Password must be at least 6 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: !_isConfirmPasswordVisible,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm Password',
+                      labelStyle: TextStyle(color: Colors.grey[400]),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[800]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.red[400]!),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isConfirmPasswordVisible
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.grey[400],
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                          });
+                        },
+                      ),
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please confirm your password';
+                      }
+                      if (value != _passwordController.text) {
+                        return 'Passwords do not match';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 40),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: _isLoading ? null : _handleSignUp,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.red[400],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Create Account',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Already have an account? ',
+                        style: TextStyle(color: Colors.grey[400]),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        child: Text(
+                          'Sign In',
+                          style: TextStyle(color: Colors.red[400]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+ void _handleSignUp() async {
+  if (_formKey.currentState?.validate() ?? false) {
+    setState(() => _isLoading = true);
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.signUp(
+        _emailController.text,
+        _passwordController.text,
+      );
+      
+      if (mounted && authProvider.isAuthenticated) {
+        // Navigate to home screen
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/home',
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+}
+}
+--- End of File: ./features/auth/presentation/screens/sign_up_screen.dart ---
+--- Start of File: ./features/auth/presentation/screens/login_screen.dart ---
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../data/repositories/auth_repository.dart';
+import '../../presentation/providers/auth_provider.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  _LoginScreenState createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.background,
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 80),
+                Text(
+                  'Welcome Back',
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Sign in to continue',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.grey[400],
+                      ),
+                ),
+                const SizedBox(height: 48),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    enabled: !_isLoading,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your email';
+                    }
+                    if (!value.contains('@') || !value.contains('.')) {
+                      return 'Please enter a valid email';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _passwordController,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    enabled: !_isLoading,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  obscureText: true,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _handleLogin(),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your password';
+                    }
+                    if (value.length < 6) {
+                      return 'Password must be at least 6 characters';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 56,
+                  child: FilledButton(
+                    onPressed: _isLoading ? null : _handleLogin,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Sign In',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Don\'t have an account?',
+                      style: TextStyle(color: Colors.grey[400]),
+                    ),
+                    TextButton(
+                      onPressed: _isLoading
+                          ? null
+                          : () => Navigator.pushNamed(context, '/signup'),
+                      child: const Text('Sign Up'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleLogin() async {
+    if (_formKey.currentState?.validate() == true) {
+      setState(() => _isLoading = true);
+      try {
+        print('Starting login process...'); // Debug log
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        
+        await authProvider.signIn(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+        
+        print('Login successful'); // Debug log
+      } on firebase_auth.FirebaseAuthException catch (e) {
+        print('FirebaseAuth Error: ${e.code} - ${e.message}'); // Debug log
+        if (mounted) {
+          String message;
+          switch (e.code) {
+            case 'user-not-found':
+              message = 'No user found with this email.';
+              break;
+            case 'wrong-password':
+              message = 'Wrong password provided.';
+              break;
+            case 'invalid-email':
+              message = 'Please enter a valid email address.';
+              break;
+            case 'user-disabled':
+              message = 'This account has been disabled.';
+              break;
+            default:
+              message = e.message ?? 'An error occurred during sign in.';
+          }
+          _showErrorSnackBar(message);
+        }
+      } catch (e) {
+        print('Unexpected error: $e'); // Debug log
+        if (mounted) {
+          _showErrorSnackBar('An unexpected error occurred. Please try again.');
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+}
+--- End of File: ./features/auth/presentation/screens/login_screen.dart ---
+--- Start of File: ./features/auth/presentation/screens/sign_in_screen.dart ---
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../providers/auth_provider.dart';
+import 'package:provider/provider.dart';
+
+class SignInScreen extends StatefulWidget {
+  const SignInScreen({super.key});
+
+  @override
+  State<SignInScreen> createState() => _SignInScreenState();
+}
+
+class _SignInScreenState extends State<SignInScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+  bool _isPasswordVisible = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 40),
+                  Text(
+                    'Welcome back',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sign in to your wine collection',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[400],
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      labelStyle: TextStyle(color: Colors.grey[400]),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[800]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.red[400]!),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your email';
+                      }
+                      if (!value.contains('@') || !value.contains('.')) {
+                        return 'Please enter a valid email';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: !_isPasswordVisible,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      labelStyle: TextStyle(color: Colors.grey[400]),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[800]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.red[400]!),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.grey[400],
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your password';
+                      }
+                      if (value.length < 6) {
+                        return 'Password must be at least 6 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 40),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: _isLoading ? null : _handleSignIn,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.red[400],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Sign In',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Don\'t have an account? ',
+                        style: TextStyle(color: Colors.grey[400]),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/signup');
+                        },
+                        child: Text(
+                          'Sign Up',
+                          style: TextStyle(color: Colors.red[400]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleSignIn() async {
+    if (_formKey.currentState?.validate() ?? false) {
+      setState(() => _isLoading = true);
+      try {
+        print('SignInScreen: Starting sign in...');
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        await authProvider.signIn(
+          _emailController.text,
+          _passwordController.text,
+        );
+        print('SignInScreen: Sign in completed successfully');
+
+        // Add this block to ensure proper navigation
+        if (mounted && context.mounted) {
+          print('SignInScreen: Navigating to home...');
+          // Force navigation to home
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            '/home',
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        print('SignInScreen: Sign in error: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString()),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        print('SignInScreen: Sign in process completed');
+      }
+    }
+  }
+}
+
+--- End of File: ./features/auth/presentation/screens/sign_in_screen.dart ---
+--- Start of File: ./features/wine_collection/utils/image_helper.dart ---
+// // lib/features/wine_collection/utils/image_helper.dart
+// import 'package:image_picker/image_picker.dart';
+// import 'package:image_cropper/image_cropper.dart';
+// import 'package:flutter/material.dart';
+
+// class ImageHelper {
+//   static Future<String?> pickAndCropImage(BuildContext context) async {
+//     try {
+//       final ImagePicker picker = ImagePicker();
+//       final XFile? image = await _showImageSourceDialog(context, picker);
+
+//       if (image != null) {
+//         final CroppedFile? croppedFile = await _cropImage(context, image.path);
+//         return croppedFile?.path;
+//       }
+//       return null;
+//     } catch (e) {
+//       _showErrorSnackBar(context, 'Failed to process image');
+//       return null;
+//     }
+//   }
+
+//   static Future<XFile?> _showImageSourceDialog(
+//       BuildContext context, ImagePicker picker) {
+//     return showModalBottomSheet<XFile?>(
+//       context: context,
+//       // Continuing lib/features/wine_collection/utils/image_helper.dart
+//       backgroundColor: Theme.of(context).colorScheme.surface,
+//       shape: const RoundedRectangleBorder(
+//         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+//       ),
+//       builder: (BuildContext context) {
+//         return SafeArea(
+//           child: Column(
+//             mainAxisSize: MainAxisSize.min,
+//             children: [
+//               const SizedBox(height: 8),
+//               Container(
+//                 width: 40,
+//                 height: 4,
+//                 decoration: BoxDecoration(
+//                   color: Colors.grey[600],
+//                   borderRadius: BorderRadius.circular(2),
+//                 ),
+//               ),
+//               Padding(
+//                 padding: const EdgeInsets.all(16.0),
+//                 child: Text(
+//                   'For best results, position the bottle vertically and ensure it fills most of the frame',
+//                   style: TextStyle(color: Colors.grey[400], fontSize: 12),
+//                   textAlign: TextAlign.center,
+//                 ),
+//               ),
+//               ListTile(
+//                 leading: const Icon(Icons.camera_alt),
+//                 title: const Text('Take Photo'),
+//                 subtitle: const Text('Position bottle vertically'),
+//                 onTap: () async {
+//                   Navigator.pop(
+//                     context,
+//                     await picker.pickImage(
+//                       source: ImageSource.camera,
+//                       preferredCameraDevice: CameraDevice.rear,
+//                       imageQuality: 85,
+//                     ),
+//                   );
+//                 },
+//               ),
+//               ListTile(
+//                 leading: const Icon(Icons.photo_library),
+//                 title: const Text('Choose from Library'),
+//                 subtitle: const Text('Select a vertical bottle photo'),
+//                 onTap: () async {
+//                   Navigator.pop(
+//                     context,
+//                     await picker.pickImage(
+//                       source: ImageSource.gallery,
+//                       imageQuality: 85,
+//                     ),
+//                   );
+//                 },
+//               ),
+//               const SizedBox(height: 16),
+//             ],
+//           ),
+//         );
+//       },
+//     );
+//   }
+
+//   static Future<CroppedFile?> _cropImage(BuildContext context, String imagePath) {
+//     return ImageCropper().cropImage(
+//       sourcePath: imagePath,
+//       aspectRatio: const CropAspectRatio(ratioX: 2, ratioY: 3),
+//       compressQuality: 85,
+//       maxHeight: 1920,
+//       maxWidth: 1440,
+//       cropStyle: CropStyle.rectangle,
+//       compressFormat: ImageCompressFormat.jpg,
+//       uiSettings: [
+//         AndroidUiSettings(
+//           toolbarTitle: 'Adjust Bottle Photo',
+//           toolbarColor: Theme.of(context).colorScheme.surface,
+//           toolbarWidgetColor: Theme.of(context).colorScheme.onSurface,
+//           hideBottomControls: false,
+//           statusBarColor: Theme.of(context).colorScheme.surface,
+//           activeControlsWidgetColor: Theme.of(context).colorScheme.primary,
+//           dimmedLayerColor: Colors.black.withOpacity(0.8),
+//           cropGridColumnCount: 3,
+//           cropGridRowCount: 4,
+//           cropGridColor: Colors.white.withOpacity(0.5),
+//           cropFrameColor: Colors.red[400]!,
+//           cropFrameStrokeWidth: 2,
+//           cropGridStrokeWidth: 1,
+//           initAspectRatio: CropAspectRatioPreset.original,
+//           showCropGrid: true,
+//           lockAspectRatio: true,
+//         ),
+//         IOSUiSettings(
+//           title: 'Adjust Bottle Photo',
+//           doneButtonTitle: 'Done',
+//           cancelButtonTitle: 'Cancel',
+//           aspectRatioLockEnabled: true,
+//           resetAspectRatioEnabled: false,
+//           aspectRatioPickerButtonHidden: true,
+//           rotateButtonsHidden: false,
+//           rotateClockwiseButtonHidden: false,
+//           minimumAspectRatio: 0.5,
+//           rectX: 0,
+//           rectY: 0,
+//           rectWidth: 2,
+//           rectHeight: 3,
+//           showActivitySheetOnDone: false,
+//           showCancelConfirmationDialog: false,
+//           hidesNavigationBar: false,
+//         ),
+//       ],
+//     );
+//   }
+
+//   static void _showErrorSnackBar(BuildContext context, String message) {
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       SnackBar(
+//         content: Text(message),
+//         backgroundColor: Colors.red[400],
+//         behavior: SnackBarBehavior.floating,
+//         shape: RoundedRectangleBorder(
+//           borderRadius: BorderRadius.circular(10),
+//         ),
+//       ),
+//     );
+//   }
+
+//   static void showSuccessMessage(BuildContext context) {
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       SnackBar(
+//         content: const Text(
+//             'Photo added successfully! All bottle photos will maintain the same proportions for consistency.'),
+//         backgroundColor: Colors.green[700],
+//         duration: const Duration(seconds: 4),
+//         behavior: SnackBarBehavior.floating,
+//         shape: RoundedRectangleBorder(
+//           borderRadius: BorderRadius.circular(10),
+//         ),
+//       ),
+//     );
+//   }
+// }
+--- End of File: ./features/wine_collection/utils/image_helper.dart ---
+--- Start of File: ./features/wine_collection/utils/share_helper.dart ---
+// // lib/features/wine_collection/utils/share_helper.dart
+// import 'package:share_plus/share_plus.dart';
+// import 'package:wine_inventory/core/models/wine_type.dart';
+// import 'package:wine_inventory/features/wine_collection/domain/models/wine_bottle.dart';
+// import 'package:wine_inventory/features/wine_collection/presentation/managers/wine_manager.dart';
+// import 'wine_type_helper.dart';
+
+// class ShareHelper {
+//   static void shareWineList(WineManager wineManager) {
+//     try {
+//       final StringBuffer shareText = StringBuffer();
+      
+//       // Header
+//       shareText.writeln('🍷 My Wine Collection');
+//       shareText.writeln('Total: ${wineManager.totalBottles} bottles\n');
+
+//       // Group by wine type
+//       final groupedBottles = _groupBottlesByType(wineManager);
+//       _addGroupedBottlesToShare(shareText, groupedBottles);
+
+//       // Recently drunk section
+//       if (wineManager.drunkWines.isNotEmpty) {
+//         _addRecentlyDrunkToShare(shareText, wineManager);
+//       }
+
+//       // Share the text
+//       Share.share(
+//         shareText.toString(),
+//         subject: 'My Wine Stocker Collection',
+//       );
+//     } catch (e) {
+//       print('Failed to share wine list: $e');
+//     }
+//   }
+
+//   static Map<WineType?, List<WineBottle>> _groupBottlesByType(
+//       WineManager wineManager) {
+//     final Map<WineType?, List<WineBottle>> groupedBottles = {};
+    
+//     for (var row in wineManager.grid) {
+//       for (var bottle in row) {
+//         if (!bottle.isEmpty) {
+//           if (!groupedBottles.containsKey(bottle.type)) {
+//             groupedBottles[bottle.type] = [];
+//           }
+//           groupedBottles[bottle.type]!.add(bottle);
+//         }
+//       }
+//     }
+    
+//     return groupedBottles;
+//   }
+
+//   static void _addGroupedBottlesToShare(
+//       StringBuffer shareText, Map<WineType?, List<WineBottle>> groupedBottles) {
+//     groupedBottles.forEach((type, typeBottles) {
+//       shareText.writeln(
+//           '${WineTypeHelper.getTypeEmoji(type!)} ${type.name.toUpperCase()}');
+
+//       typeBottles.sort((a, b) => (a.name ?? '').compareTo(b.name ?? ''));
+
+//       for (var bottle in typeBottles) {
+//         if (bottle.isFavorite) shareText.write('⭐ ');
+//         shareText.write(bottle.name ?? 'Unnamed Wine');
+
+//         final List<String> details = [];
+//         if (bottle.year != null) details.add(bottle.year!);
+//         if (bottle.rating != null) {
+//           details.add('${bottle.rating!.toStringAsFixed(1)}★');
+//         }
+
+//         if (details.isNotEmpty) {
+//           shareText.write(' (${details.join(' • ')})');
+//         }
+
+//         shareText.writeln();
+//       }
+//       shareText.writeln();
+//     });
+//   }
+
+//   static void _addRecentlyDrunkToShare(
+//       StringBuffer shareText, WineManager wineManager) {
+//     final recentDrunk = List<WineBottle>.from(wineManager.drunkWines)
+//       ..sort((a, b) =>
+//           (b.dateDrunk ?? DateTime.now())
+//               .compareTo(a.dateDrunk ?? DateTime.now()))
+//       ..take(3);
+
+//     shareText.writeln('🍾 Recently Enjoyed');
+//     for (var wine in recentDrunk) {
+//       shareText.write('• ${wine.name ?? 'Unnamed Wine'}');
+//       if (wine.year != null) shareText.write(' (${wine.year})');
+//       shareText.writeln();
+//     }
+//   }
+// }
+
+--- End of File: ./features/wine_collection/utils/share_helper.dart ---
+--- Start of File: ./features/wine_collection/utils/wine_type_helper.dart ---
+import 'package:flutter/material.dart';
+import '../../../core/models/wine_type.dart';
+
+class WineTypeHelper {
+  static Color getTypeColor(WineType type) {
+    switch (type) {
+      case WineType.red:
+        return Colors.red[400]!;
+      case WineType.white:
+        return Colors.amber[300]!;
+      case WineType.sparkling:
+        return Colors.blue[300]!;
+      case WineType.rose:
+        return Colors.pink[300]!;
+      case WineType.dessert:
+        return Colors.orange[300]!;
+    }
+  }
+
+  static String getTypeName(WineType type) {
+    switch (type) {
+      case WineType.red:
+        return 'Red';
+      case WineType.white:
+        return 'White';
+      case WineType.sparkling:
+        return 'Sparkling';
+      case WineType.rose:
+        return 'Rosé';
+      case WineType.dessert:
+        return 'Dessert';
+    }
+  }
+
+  static IconData getTypeIcon(WineType type) {
+    switch (type) {
+      case WineType.red:
+        return Icons.wine_bar;
+      case WineType.white:
+        return Icons.wine_bar;
+      case WineType.sparkling:
+        return Icons.local_bar;
+      case WineType.rose:
+        return Icons.wine_bar;
+      case WineType.dessert:
+        return Icons.wine_bar;
+    }
+  }
+}
+--- End of File: ./features/wine_collection/utils/wine_type_helper.dart ---
+--- Start of File: ./features/wine_collection/data/repositories/wine_repository.dart ---
+import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import '../../domain/models/wine_bottle.dart';
+import '../../domain/models/grid_settings.dart';
+
+class WineRepository {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final String userId;
+
+  WineRepository(this.userId);
+
+  CollectionReference get _userWines => 
+    _firestore.collection('users').doc(userId).collection('wines');
+  
+  CollectionReference get _userSettings => 
+    _firestore.collection('users').doc(userId).collection('settings');
+
+  CollectionReference get _drunkWines =>
+    _firestore.collection('users').doc(userId).collection('drunk_wines');
+
+  Future<String?> uploadWineImage(String localPath) async {
+    try {
+      final file = File(localPath);
+      final fileName = 'wine_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final ref = _storage.ref().child('users/$userId/wine_images/$fileName');
+      
+      final metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+        customMetadata: {
+          'userId': userId,
+          'uploadedAt': DateTime.now().toIso8601String(),
+        },
+      );
+
+      await ref.putFile(file, metadata);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      print('Error uploading image: $e');
+      return null;
+    }
+  }
+
+  Future<bool> deleteWineImage(String? imageUrl) async {
+    if (imageUrl == null || !imageUrl.startsWith('http')) {
+      return true;  // Nothing to delete
+    }
+
+    try {
+      final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+      await ref.delete();
+      return true;
+    } catch (e) {
+      if (e.toString().contains('object-not-found')) {
+        return true;  // Consider it a success if image doesn't exist
+      }
+      print('Error deleting image: $e');
+      return false;
+    }
+  }
+ Future<void> deleteWineFromFirestore(int row, int col) async {
+    try {
+      // Get the document reference from Firestore
+      final snapshot = await _userWines
+          .where('position.row', isEqualTo: row)
+          .where('position.col', isEqualTo: col)
+          .get();
+
+      // Delete the document from Firestore
+      for (var doc in snapshot.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      print('Error deleting wine from Firestore: $e');
+      rethrow;
+    }
+  }
+  Future<String?> copyWineImage(String sourceUrl) async {
+    try {
+      // Get reference to the source image
+      final sourceRef = FirebaseStorage.instance.refFromURL(sourceUrl);
+      
+      // Create a new filename for the copy
+      final fileName = 'wine_copy_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final newRef = _storage.ref().child('users/$userId/wine_images/$fileName');
+      
+      // Download source image data
+      final data = await sourceRef.getData();
+      if (data == null) return null;
+      
+      // Upload to new location with metadata
+      await newRef.putData(
+        data,
+        SettableMetadata(
+          contentType: 'image/jpeg',
+          customMetadata: {
+            'userId': userId,
+            'copiedAt': DateTime.now().toIso8601String(),
+            'sourceUrl': sourceUrl,
+          },
+        ),
+      );
+      
+      return await newRef.getDownloadURL();
+    } catch (e) {
+      print('Error copying image: $e');
+      return null;
+    }
+  }
+
+  Future<void> saveWineGrid(List<List<WineBottle>> grid) async {
+    final batch = _firestore.batch();
+    
+    // Get existing wines and their images
+    final existingWines = await _userWines.get();
+    final existingImages = existingWines.docs
+        .map((doc) => (doc.data() as Map<String, dynamic>)['imagePath'] as String?)
+        .where((url) => url != null)
+        .toList();
+    
+    // Track which images are still in use
+    final imagesInUse = <String>{};
+    
+    // Delete existing docs
+    for (var doc in existingWines.docs) {
+      batch.delete(doc.reference);
+    }
+
+    // Add new wines
+    for (int i = 0; i < grid.length; i++) {
+      for (int j = 0; j < grid[i].length; j++) {
+        final bottle = grid[i][j];
+        if (!bottle.isEmpty) {
+          String? imageUrl = bottle.imagePath;
+          
+          // Upload new image if needed
+          if (imageUrl != null && !imageUrl.startsWith('http')) {
+            imageUrl = await uploadWineImage(bottle.imagePath!);
+            bottle.imagePath = imageUrl;
+          }
+          
+          // Track image if it exists
+          if (imageUrl != null && imageUrl.startsWith('http')) {
+            imagesInUse.add(imageUrl);
+          }
+
+          batch.set(_userWines.doc(), {
+            ...bottle.toJson(),
+            'position': {'row': i, 'col': j},
+            'userId': userId,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    }
+
+    // Delete unused images
+    for (String? oldImage in existingImages) {
+      if (oldImage != null && !imagesInUse.contains(oldImage)) {
+        await deleteWineImage(oldImage);
+      }
+    }
+
+    await batch.commit();
+  }
+
+  Future<List<List<WineBottle>>> loadWineGrid(GridSettings settings) async {
+    final snapshot = await _userWines
+        .orderBy('createdAt', descending: false)
+        .get();
+    
+    List<List<WineBottle>> grid = List.generate(
+      settings.rows,
+      (i) => List.generate(settings.columns, (j) => WineBottle()),
+    );
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      print('Raw data from Firestore: $data'); // Debug print
+      final position = data['position'] as Map<String, dynamic>;
+      final row = position['row'] as int;
+      final col = position['col'] as int;
+
+      if (row < settings.rows && col < settings.columns) {
+        print('Creating WineBottle with isForTrade: ${data['isForTrade']}'); // Debug print
+        grid[row][col] = WineBottle.fromJson(data);
+        print('Created WineBottle isForTrade value: ${grid[row][col].isForTrade}'); // Debug print
+      }
+    }
+
+    return grid;
+  }
+  Future<void> saveDrunkWines(List<WineBottle> drunkWines) async {
+    final batch = _firestore.batch();
+    
+    // Get existing drunk wines
+    final existingDrunkWines = await _drunkWines.get();
+    
+    // Track existing and future images
+    final existingImages = existingDrunkWines.docs
+        .map((doc) => (doc.data() as Map<String, dynamic>)['imagePath'] as String?)
+        .where((url) => url != null)
+        .toSet();
+    
+    final newImages = drunkWines
+        .map((wine) => wine.imagePath)
+        .where((url) => url != null)
+        .toSet();
+    
+    // Delete images that won't be used anymore
+    for (String? imageUrl in existingImages) {
+      if (imageUrl != null && !newImages.contains(imageUrl)) {
+        await deleteWineImage(imageUrl);
+      }
+    }
+    
+    // Delete all existing documents
+    for (var doc in existingDrunkWines.docs) {
+      batch.delete(doc.reference);
+    }
+
+    // Add new drunk wines
+    for (var bottle in drunkWines) {
+      batch.set(_drunkWines.doc(), {
+        ...bottle.toJson(),
+        'userId': userId,
+        'drunkAt': bottle.dateDrunk?.toIso8601String(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+  }
+
+  Future<List<WineBottle>> loadDrunkWines() async {
+    final snapshot = await _drunkWines
+        .orderBy('drunkAt', descending: true)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => WineBottle.fromJson(doc.data() as Map<String, dynamic>))
+        .where((bottle) => bottle.isDrunk && bottle.dateDrunk != null)
+        .toList();
+  }
+
+  Future<void> removeDrunkWine(WineBottle wine) async {
+    try {
+      final snapshot = await _drunkWines
+          .where('name', isEqualTo: wine.name)
+          .where('drunkAt', isEqualTo: wine.dateDrunk?.toIso8601String())
+          .get();
+
+      final batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data['imagePath'] != null) {
+          await deleteWineImage(data['imagePath']);
+        }
+        batch.delete(doc.reference);
+      }
+      
+      await batch.commit();
+    } catch (e) {
+      print('Error removing drunk wine: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> saveGridSettings(GridSettings settings) async {
+    await _userSettings.doc('grid').set({
+      ...settings.toJson(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+Future<bool> isFirstTimeSetup() async {
+  final doc = await _userSettings.doc('grid').get();
+  return !doc.exists;
+}
+
+  Future<GridSettings> loadGridSettings() async {
+    final doc = await _userSettings.doc('grid').get();
+    if (doc.exists) {
+      return GridSettings.fromJson(doc.data() as Map<String, dynamic>);
+    }
+    return GridSettings.defaultSettings();
+  }
+
+  Future<List<List<WineBottle>>> loadUserWineGrid(
+    String otherUserId, 
+    GridSettings settings
+  ) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(otherUserId)
+        .collection('wines')
+        .orderBy('createdAt', descending: false)
+        .get();
+
+    List<List<WineBottle>> grid = List.generate(
+      settings.rows,
+      (i) => List.generate(settings.columns, (j) => WineBottle()),
+    );
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final position = data['position'] as Map<String, dynamic>;
+      final row = position['row'] as int;
+      final col = position['col'] as int;
+
+      if (row < settings.rows && col < settings.columns) {
+        grid[row][col] = WineBottle.fromJson(data);
+      }
+    }
+
+    return grid;
+  }
+}
+--- End of File: ./features/wine_collection/data/repositories/wine_repository.dart ---
+--- Start of File: ./features/wine_collection/domain/models/wine_bottle.dart ---
+import 'package:wine_inventory/core/models/wine_type.dart';
+
+class WineBottle {
+  String? name;
+  String? year;
+  String? notes;
+  DateTime? dateAdded;
+  DateTime? dateDrunk;
+  String? imagePath;
+  WineType? type;
+  double? rating;
+  double? price; // Added price field
+  bool isFavorite;
+  bool isDrunk;
+  String? ownerId; // Added owner ID for trading feature
+  bool isForTrade; // Added trade status
+
+  WineBottle({
+    this.name,
+    this.year,
+    this.notes,
+    this.dateAdded,
+    this.dateDrunk,
+    this.imagePath,
+    this.type,
+    this.rating,
+    this.price, // Added price
+    this.isFavorite = false,
+    this.isDrunk = false,
+    this.ownerId,
+    this.isForTrade = false,
+  });
+
+  bool get isEmpty => name == null && imagePath == null;
+
+  // In wine_bottle.dart
+
+factory WineBottle.fromJson(Map<String, dynamic> json) {
+    print('Raw isForTrade value from DB: ${json['isForTrade']}'); // Debug log
+    return WineBottle(
+      name: json['name'],
+      year: json['year'],
+      notes: json['notes'],
+      dateAdded: json['dateAdded'] != null
+          ? DateTime.parse(json['dateAdded'])
+          : null,
+      dateDrunk: json['dateDrunk'] != null
+          ? DateTime.parse(json['dateDrunk'])
+          : null,
+      imagePath: json['imagePath'],
+      type: json['type'] != null ? WineType.values[json['type']] : null,
+      rating: json['rating']?.toDouble(),
+      price: json['price']?.toDouble(),
+      isFavorite: json['isFavorite'] ?? false,
+      isDrunk: json['isDrunk'] ?? false,
+      ownerId: json['ownerId'],
+      isForTrade: json['isForTrade'] == true, 
+    );
+  }
+
+  // Also update toJson to ensure we're saving boolean correctly
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'year': year,
+      'notes': notes,
+      'dateAdded': dateAdded?.toIso8601String(),
+      'dateDrunk': dateDrunk?.toIso8601String(),
+      'imagePath': imagePath,
+      'type': type?.index,
+      'rating': rating,
+      'price': price,
+      'isFavorite': isFavorite,
+      'isDrunk': isDrunk,
+      'ownerId': ownerId,
+      'isForTrade': isForTrade,
+    };
+  }
+}
+--- End of File: ./features/wine_collection/domain/models/wine_bottle.dart ---
+--- Start of File: ./features/wine_collection/domain/models/grid_settings.dart ---
+class GridSettings {
+  final int rows;
+  final int columns;
+
+  const GridSettings({
+    required this.rows,
+    required this.columns,
+  });
+
+  factory GridSettings.defaultSettings() {
+    return const GridSettings(
+      rows: 8,  // Make sure these match your desired grid size
+      columns: 3,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'rows': rows,
+      'columns': columns,
+    };
+  }
+
+  factory GridSettings.fromJson(Map<String, dynamic> json) {
+    return GridSettings(
+      rows: json['rows'] as int? ?? 8,
+      columns: json['columns'] as int? ?? 3,
+    );
+  }
+}
+--- End of File: ./features/wine_collection/domain/models/grid_settings.dart ---
+--- Start of File: ./features/wine_collection/presentation/managers/wine_manager.dart ---
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:wine_inventory/core/models/wine_type.dart';
+import 'package:wine_inventory/features/wine_collection/presentation/dialogs/first_time_setup_dialog.dart';
+import '../../domain/models/wine_bottle.dart';
+import '../../domain/models/grid_settings.dart';
+import '../../data/repositories/wine_repository.dart';
+
+class WineManager extends ChangeNotifier {
+  final WineRepository repository;
+  List<List<WineBottle>> _grid;  // Initialize in constructor
+  List<WineBottle> drunkWines = [];
+  late GridSettings settings;  // Initialize in constructor
+  WineType? _selectedFilter;
+  int totalBottles = 0;
+  double totalCollectionValue = 0.0;
+  bool isGridView = true;
+  bool _isLoading = false;
+  bool _isInitialized = false;
+  WineBottle? _copiedWine;
+
+  WineManager(this.repository) : 
+    _grid = [],
+    settings = GridSettings.defaultSettings() {
+    loadData();
+  }
+
+  // Getters
+  List<List<WineBottle>> get grid => _grid;
+  bool get isInitialized => _isInitialized; 
+  bool get isLoading => _isLoading;
+  bool get hasCopiedWine => _copiedWine != null;
+  WineType? get selectedFilter => _selectedFilter;
+  WineBottle? get copiedWine => _copiedWine;
+
+  void _initializeGrid() {
+    _grid = List.generate(
+      settings.rows,
+      (i) => List.generate(
+        settings.columns,
+        (j) => WineBottle(),
+      ),
+    );
+  }
+
+  Future<void> saveSettings(GridSettings newSettings) async {
+    if (_isLoading) return;
+    
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      settings = newSettings;
+      await repository.saveGridSettings(settings);
+      await loadData();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadData() async {
+    if (_isLoading) return;
+    
+    try {
+      _isLoading = true;
+      _isInitialized = false;  // Reset initialized state
+      notifyListeners();
+
+      // Load settings first
+      settings = await repository.loadGridSettings();
+      
+      // Initialize grid with current settings
+      _grid = List.generate(
+        settings.rows,
+        (i) => List.generate(
+          settings.columns,
+          (j) => WineBottle(),
+        ),
+      );
+
+      // Load existing data
+      final existingGrid = await repository.loadWineGrid(settings);
+      if (existingGrid.isNotEmpty) {
+        for (int i = 0; i < settings.rows && i < existingGrid.length; i++) {
+          for (int j = 0; j < settings.columns && j < existingGrid[i].length; j++) {
+            if (!existingGrid[i][j].isEmpty) {
+              _grid[i][j] = existingGrid[i][j];
+            }
+          }
+        }
+      }
+
+      drunkWines = await repository.loadDrunkWines();
+      _updateStatistics();
+    } catch (e) {
+      print('Error loading data: $e');
+      _grid = List.generate(
+        settings.rows,
+        (i) => List.generate(
+          settings.columns,
+          (j) => WineBottle(),
+        ),
+      );
+    } finally {
+      _isLoading = false;
+      _isInitialized = true;  // Mark as initialized
+      notifyListeners();
+    }
+  }
+
+  bool _isValidPosition(int row, int col) {
+    return _grid.isNotEmpty && 
+           row >= 0 && 
+           col >= 0 && 
+           row < _grid.length && 
+           _grid[row].isNotEmpty &&
+           col < _grid[row].length;
+  }
+
+  void toggleView() {
+    isGridView = !isGridView;
+    notifyListeners();
+  }
+
+  void setFilter(WineType? type) {
+    _selectedFilter = (_selectedFilter == type) ? null : type;
+    _updateStatistics();
+    notifyListeners();
+  }
+Future<bool> showFirstTimeSetup(BuildContext context) async {
+  final isFirstTime = await repository.isFirstTimeSetup();
+  if (!isFirstTime) return false;
+
+  final newSettings = await showDialog<GridSettings>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const FirstTimeSetupDialog(),
+  );
+
+  if (newSettings != null) {
+    settings = newSettings;
+    await repository.saveGridSettings(settings);
+    await loadData();
+    return true;
+  }
+  return false;
+}
+void _updateStatistics() {
+  if (_grid.isEmpty) {
+    totalBottles = 0;
+    totalCollectionValue = 0;
+    return;
+  }
+
+  int bottles = 0;
+  double total = 0;
+  
+  for (var row in _grid) {
+    for (var bottle in row) {
+      if (!bottle.isEmpty && 
+          (_selectedFilter == null || bottle.type == _selectedFilter)) {
+        bottles++;
+        if (bottle.price != null) {
+          total += bottle.price!;
+        }
+      }
+    }
+  }
+
+  totalBottles = bottles;
+  totalCollectionValue = total;
+  notifyListeners();
+}
+
+  Future<void> copyWine(WineBottle bottle) async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      String? newImagePath = bottle.imagePath;
+      if (bottle.imagePath != null && bottle.imagePath!.startsWith('http')) {
+        newImagePath = await repository.copyWineImage(bottle.imagePath!);
+      }
+      
+      _copiedWine = WineBottle(
+        name: bottle.name,
+        year: bottle.year,
+        notes: bottle.notes,
+        type: bottle.type,
+        rating: bottle.rating,
+        isFavorite: bottle.isFavorite,
+        imagePath: newImagePath,
+      );
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateWine(WineBottle bottle, int row, int col) async {
+    if (!_isValidPosition(row, col)) return;
+    
+    _grid[row][col] = bottle;
+    await saveData();
+  }
+
+  Future<void> saveData() async {
+    if (_isLoading) return;
+    
+    try {
+      _isLoading = true;
+      notifyListeners();
+      await repository.saveWineGrid(_grid);
+      await repository.saveDrunkWines(drunkWines);
+      _updateStatistics();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> markAsDrunk(WineBottle bottle, int row, int col) async {
+    if (!_isValidPosition(row, col)) return;
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      bottle.isDrunk = true;
+      bottle.dateDrunk = DateTime.now();
+      drunkWines.add(bottle);
+      _grid[row][col] = WineBottle();
+      await saveData();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> removeDrunkWine(WineBottle wine) async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      drunkWines.remove(wine);
+      await repository.removeDrunkWine(wine);
+      await saveData();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+   Future<void> deleteWine(int row, int col) async {
+    if (!_isValidPosition(row, col)) return;
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final bottle = _grid[row][col];
+      
+      // Delete from Firestore
+      await repository.deleteWineFromFirestore(row, col);
+
+      // Delete image if it exists
+      if (!bottle.isEmpty && bottle.imagePath != null && bottle.imagePath!.startsWith('http')) {
+        await repository.deleteWineImage(bottle.imagePath!);
+      }
+      
+      // Clear the grid position
+      _grid[row][col] = WineBottle();
+      _updateStatistics();
+      notifyListeners();
+
+    } catch (e) {
+      print('Error deleting wine: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateBottleWithImage(WineBottle bottle, int row, int col, String localPath) async {
+    if (!_isValidPosition(row, col)) return;
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      if (bottle.imagePath != null && bottle.imagePath!.startsWith('http')) {
+        await repository.deleteWineImage(bottle.imagePath!);
+      }
+
+      final imageUrl = await repository.uploadWineImage(localPath);
+      if (imageUrl != null) {
+        bottle.imagePath = imageUrl;
+        await updateWine(bottle, row, col);
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> pasteWine(int row, int col) async {
+    if (!_isValidPosition(row, col) || _copiedWine == null) return;
+
+    _grid[row][col] = WineBottle(
+      name: _copiedWine!.name,
+      year: _copiedWine!.year,
+      notes: _copiedWine!.notes,
+      type: _copiedWine!.type,
+      rating: _copiedWine!.rating,
+      isFavorite: _copiedWine!.isFavorite,
+      imagePath: _copiedWine!.imagePath,
+      dateAdded: DateTime.now(),
+    );
+    await saveData();
+  }
+
+  List<WineBottle> getVisibleBottles() {
+    if (_grid.isEmpty) return [];
+
+    return _grid.expand((row) => row)
+        .where((bottle) => !bottle.isEmpty && 
+            (_selectedFilter == null || bottle.type == _selectedFilter))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _grid.clear();
+    drunkWines.clear();
+    _copiedWine = null;
+    super.dispose();
+  }
+}
+--- End of File: ./features/wine_collection/presentation/managers/wine_manager.dart ---
+--- Start of File: ./features/wine_collection/presentation/screens/browse_users_screen.dart ---
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'user_collection_screen.dart';
+
+class BrowseUsersScreen extends StatelessWidget {
+  const BrowseUsersScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Browse Collections'),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('users').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final users = snapshot.data!.docs;
+
+          return ListView.builder(
+            itemCount: users.length,
+            itemBuilder: (context, index) {
+              final userData = users[index].data() as Map<String, dynamic>;
+              final userId = users[index].id;
+              final displayName = userData['displayName'] ?? 'Anonymous User';
+              final photoUrl = userData['photoUrl'];
+
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: photoUrl != null
+                      ? CachedNetworkImageProvider(photoUrl)
+                      : null,
+                  child: photoUrl == null
+                      ? const Icon(Icons.person)
+                      : null,
+                ),
+                title: Text(displayName),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => UserCollectionScreen(
+                        userId: userId,
+                        userName: displayName,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+--- End of File: ./features/wine_collection/presentation/screens/browse_users_screen.dart ---
+--- Start of File: ./features/wine_collection/presentation/screens/wine_photo_screen.dart ---
+import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+
+class WinePhotoScreen extends StatefulWidget {
+  const WinePhotoScreen({super.key});
+
+  @override
+  WinePhotoScreenState createState() => WinePhotoScreenState();
+}
+
+class WinePhotoScreenState extends State<WinePhotoScreen> {
+  CameraController? _controller;
+  bool _isInitialized = false;
+  bool _isLoading = false;
+  FlashMode _flashMode = FlashMode.auto;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeCamera();
+  }
+
+  Future<void> _initializeCamera() async {
+    final cameras = await availableCameras();
+    if (cameras.isEmpty) return;
+
+    _controller = CameraController(
+      cameras.first,
+      ResolutionPreset.medium, // Adjusted to avoid high zoom effect
+      enableAudio: false,
+    );
+
+    try {
+      await _controller?.initialize();
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      print('Error initializing camera: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          if (_isInitialized && _controller != null)
+            Center(
+              child: AspectRatio(
+                aspectRatio: _controller!.value.aspectRatio,
+                child: CameraPreview(_controller!),
+              ),
+            ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildHeader(),
+                  const Spacer(),
+                  _buildBottomControls(),
+                ],
+              ),
+            ),
+          ),
+          if (_isLoading)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.close, color: Colors.white, size: 28),
+          onPressed: () => Navigator.pop(context),
+        ),
+        IconButton(
+          icon: Icon(
+            _flashMode == FlashMode.torch
+                ? Icons.flash_on
+                : _flashMode == FlashMode.auto
+                    ? Icons.flash_auto
+                    : Icons.flash_off,
+            color: Colors.white,
+            size: 28,
+          ),
+          onPressed: _toggleFlash,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomControls() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildControlButton(
+              icon: Icons.photo_library,
+              label: 'Gallery',
+              onPressed: _pickFromGallery,
+            ),
+            FloatingActionButton(
+              onPressed: _takePicture,
+              backgroundColor: Colors.white,
+              child: const Icon(Icons.camera_alt, color: Colors.black, size: 32),
+            ),
+            _buildControlButton(
+              icon: Icons.flip_camera_ios,
+              label: 'Flip',
+              onPressed: _switchCamera,
+            ),
+          ],
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return Column(
+      children: [
+        IconButton(
+          icon: Icon(icon, color: Colors.white, size: 32),
+          onPressed: onPressed,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _toggleFlash() async {
+    if (_controller == null) return;
+
+    try {
+      final newMode = _flashMode == FlashMode.off
+          ? FlashMode.auto
+          : _flashMode == FlashMode.auto
+              ? FlashMode.torch
+              : FlashMode.off;
+
+      await _controller!.setFlashMode(newMode);
+      setState(() {
+        _flashMode = newMode;
+      });
+    } catch (e) {
+      print('Error toggling flash: $e');
+    }
+  }
+
+  Future<void> _takePicture() async {
+    if (_controller == null || !_controller!.value.isInitialized || _isLoading) {
+      return;
+    }
+
+    try {
+      setState(() => _isLoading = true);
+      final image = await _controller!.takePicture();
+      final croppedImage = await _cropImage(image.path);
+      if (croppedImage != null && mounted) {
+        Navigator.pop(context, croppedImage.path);
+      }
+    } catch (e) {
+      print('Error taking picture: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 100,
+      );
+
+      if (image != null) {
+        final croppedImage = await _cropImage(image.path);
+        if (croppedImage != null && mounted) {
+          Navigator.pop(context, croppedImage.path);
+        }
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (_controller == null) return;
+
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+
+      final currentCameraIndex = cameras.indexOf(_controller!.description);
+      final newCameraIndex = (currentCameraIndex + 1) % cameras.length;
+
+      await _controller?.dispose();
+
+      _controller = CameraController(
+        cameras[newCameraIndex],
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await _controller?.initialize();
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print('Error switching camera: $e');
+    }
+  }
+
+  Future<CroppedFile?> _cropImage(String imagePath) async {
+    try {
+      return await ImageCropper().cropImage(
+        sourcePath: imagePath,
+        aspectRatio: const CropAspectRatio(ratioX: 3, ratioY: 4),
+        compressQuality: 85,
+        maxHeight: 800,
+        maxWidth: 800,
+        compressFormat: ImageCompressFormat.jpg,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Adjust Bottle Photo',
+            toolbarColor: Theme.of(context).colorScheme.surface,
+            toolbarWidgetColor: Theme.of(context).colorScheme.onSurface,
+            hideBottomControls: false,
+          ),
+          IOSUiSettings(
+            title: 'Adjust Bottle Photo',
+            doneButtonTitle: 'Done',
+            cancelButtonTitle: 'Cancel',
+            aspectRatioLockEnabled: true,
+          ),
+        ],
+      );
+    } catch (e) {
+      print('Error cropping image: $e');
+      return null;
+    }
+  }
+}
+
+--- End of File: ./features/wine_collection/presentation/screens/wine_photo_screen.dart ---
+--- Start of File: ./features/wine_collection/presentation/screens/user_collection_screen.dart ---
+import 'package:flutter/material.dart';
+import '../widgets/wine_bottle_card.dart';
+import '../../domain/models/wine_bottle.dart';
+import '../../data/repositories/wine_repository.dart';
+
+class UserCollectionScreen extends StatefulWidget {
+  final String userId;
+  final String userName;
+
+  const UserCollectionScreen({
+    super.key,
+    required this.userId,
+    required this.userName,
+  });
+
+  @override
+  State<UserCollectionScreen> createState() => _UserCollectionScreenState();
+}
+
+class _UserCollectionScreenState extends State<UserCollectionScreen> {
+  late WineRepository _repository;
+  List<List<WineBottle>> _grid = [];
+  bool _isLoading = true;
+  double _totalValue = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository = WineRepository(widget.userId);
+    _loadUserCollection();
+  }
+
+  Future<void> _loadUserCollection() async {
+    try {
+      final settings = await _repository.loadGridSettings();
+      final grid = await _repository.loadUserWineGrid(widget.userId, settings);
+      
+      double total = 0;
+      for (var row in grid) {
+        for (var bottle in row) {
+          if (!bottle.isEmpty && bottle.price != null) {
+            total += bottle.price!;
+          }
+        }
+      }
+
+      setState(() {
+        _grid = grid;
+        _totalValue = total;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading user collection: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${widget.userName}\'s Collection',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            Text(
+              'Total Value: \$${_totalValue.toStringAsFixed(2)}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[400],
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _grid.isEmpty
+              ? const Center(child: Text('No wines found'))
+              : GridView.builder(
+                  padding: const EdgeInsets.all(8),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.75,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: _grid.length * _grid[0].length,
+                  itemBuilder: (context, index) {
+                    final row = index ~/ _grid[0].length;
+                    final col = index % _grid[0].length;
+                    final bottle = _grid[row][col];
+
+                    if (bottle.isEmpty) return const SizedBox.shrink();
+
+                    return WineBottleCard(
+                      bottle: bottle,
+                      animation: const AlwaysStoppedAnimation(1),
+                      onTap: () => _showBottleDetails(bottle),
+                    );
+                  },
+                ),
+    );
+  }
+
+  void _showBottleDetails(WineBottle bottle) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (bottle.isForTrade)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.swap_horiz, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text(
+                          'Available for Trade',
+                          style: TextStyle(color: Colors.green),
+                        ),
+                      ],
+                    ),
+                  ),
+                Text(
+                  bottle.name ?? 'Unnamed Wine',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                if (bottle.price != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Price: \$${bottle.price!.toStringAsFixed(2)}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+                // Add more bottle details...
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+--- End of File: ./features/wine_collection/presentation/screens/user_collection_screen.dart ---
+--- Start of File: ./features/wine_collection/presentation/screens/wine_grid_screen.dart ---
+import 'package:flutter/material.dart';
+import 'package:wine_inventory/core/models/wine_type.dart';
+import 'package:wine_inventory/features/auth/presentation/providers/auth_provider.dart';
+import 'package:wine_inventory/features/wine_collection/data/repositories/wine_repository.dart';
+import 'package:wine_inventory/features/wine_collection/domain/models/wine_bottle.dart';
+import 'package:wine_inventory/features/wine_collection/presentation/dialogs/drunk_wines_dialog.dart';
+import '../managers/wine_manager.dart';
+import 'package:provider/provider.dart';
+import '../widgets/wine_bottle_card.dart';
+import '../widgets/wine_type_button.dart';
+import '../dialogs/wine_details_dialog.dart';
+import '../dialogs/wine_edit_dialog.dart';
+import '../dialogs/settings_dialog.dart';
+import '../dialogs/share_dialog.dart';
+import 'browse_users_screen.dart';
+class WineGridScreen extends StatefulWidget {
+  final String userId; // Add this line
+
+  const WineGridScreen({
+    super.key,
+    required this.userId, // Add this line
+  });
+
+  @override
+  WineGridScreenState createState() => WineGridScreenState();
+}
+
+class WineGridScreenState extends State<WineGridScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+  late WineRepository _repository; // Change this to late
+  late WineManager _wineManager;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _animation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
+    _repository = WineRepository(widget.userId); // Pass userId here
+    _wineManager = WineManager(_repository);
+    _wineManager.loadData();
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+    Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: WineManager(WineRepository(widget.userId)),
+      child: Consumer<WineManager>(
+        builder: (context, wineManager, child) {
+          if (!wineManager.isInitialized) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          
+          return Scaffold(
+            appBar: _buildAppBar(context, wineManager),
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBottleCount(wineManager),
+                _buildFilterButtons(wineManager),
+                _buildWineGrid(wineManager),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(
+      BuildContext context, WineManager wineManager) {
+    return AppBar(
+      title: Text(
+        'MY WINES',
+        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.wine_bar),
+          onPressed: () => _showDrunkWines(context, wineManager),
+        ),
+        IconButton(
+          icon: Icon(
+            wineManager.isGridView ? Icons.view_list : Icons.grid_view,
+          ),
+          onPressed: () {
+            _animationController.reset();
+            wineManager.toggleView();
+            _animationController.forward();
+          },
+        ),
+        _buildMoreMenu(context, wineManager),
+      ],
+    );
+  }
+
+  Widget _buildBottleCount(WineManager wineManager) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Text(
+        '${wineManager.totalBottles} Bottles',
+        style: const TextStyle(
+          fontSize: 20,
+          color: Colors.white70,
+        ),
+      ),
+      
+    );
+  }
+
+  Widget _buildFilterButtons(WineManager wineManager) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        children: [
+          _buildAllFilterButton(wineManager),
+          const SizedBox(width: 8),
+          ...WineType.values.map(
+            (type) => Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: WineTypeButton(
+                type: type,
+                isSelected: type == wineManager.selectedFilter,
+                onTap: () => wineManager.setFilter(
+                    type == wineManager.selectedFilter ? null : type),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAllFilterButton(WineManager wineManager) {
+    return GestureDetector(
+      onTap: () => wineManager.setFilter(null),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: wineManager.selectedFilter == null
+              ? Colors.red[400]?.withOpacity(0.2)
+              : Colors.transparent,
+          border: Border.all(
+            color: wineManager.selectedFilter == null
+                ? Colors.red[400]!
+                : Colors.grey[700]!,
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          'All',
+          style: TextStyle(
+            color: wineManager.selectedFilter == null
+                ? Colors.red[400]
+                : Colors.grey[400],
+            fontWeight: wineManager.selectedFilter == null
+                ? FontWeight.bold
+                : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWineGrid(WineManager wineManager) {
+    return Expanded(
+      child: wineManager.isGridView
+          ? _buildGridView(wineManager)
+          : _buildListView(wineManager),
+    );
+  }
+
+Widget _buildGridView(WineManager wineManager) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(2),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: wineManager.settings.columns,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 5,
+        mainAxisSpacing: 5,
+      ),
+      itemCount: wineManager.settings.rows * wineManager.settings.columns,
+      itemBuilder: (context, index) {
+        final row = index ~/ wineManager.settings.columns;
+        final col = index % wineManager.settings.columns;
+        final bottle = wineManager.grid[row][col];
+
+        // If the bottle is empty, always show it regardless of filter
+        if (bottle.isEmpty) {
+          return WineBottleCard(
+            bottle: bottle,
+            animation: _animation,
+            onTap: () => _showWineEditDialog(context, wineManager, row, col),
+            onLongPress: () => wineManager.hasCopiedWine
+                ? _showEmptySlotOptionsMenu(context, wineManager, row, col)
+                : _showWineEditDialog(context, wineManager, row, col),
+          );
+        }
+
+        // If we have a filter and the bottle doesn't match, return empty space
+        if (wineManager.selectedFilter != null && bottle.type != wineManager.selectedFilter) {
+          return const SizedBox.shrink();
+        }
+
+        // Show the bottle if it matches the filter or there is no filter
+        return WineBottleCard(
+          bottle: bottle,
+          animation: _animation,
+          onTap: () => _showWineDetailsDialog(
+              context, wineManager, bottle, row, col),
+          onLongPress: () =>
+              _handleBottleLongPress(context, wineManager, bottle, row, col),
+        );
+      },
+    );
+  }
+
+  Widget _buildListView(WineManager wineManager) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(24),
+      itemCount: wineManager.settings.rows * wineManager.settings.columns,
+      itemBuilder: (context, index) {
+        final row = index ~/ wineManager.settings.columns;
+        final col = index % wineManager.settings.columns;
+        final bottle = wineManager.grid[row][col];
+
+        if (bottle.isEmpty ||
+            (wineManager.selectedFilter != null &&
+                bottle.type != wineManager.selectedFilter)) {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: SizedBox(
+            height: 120,
+            child: WineBottleCard(
+              bottle: bottle,
+              animation: _animation,
+              onTap: () => _showWineDetailsDialog(
+                  context, wineManager, bottle, row, col),
+              onLongPress: () => _showWineEditDialog(
+                  context, wineManager, row, col,
+                  isEdit: true),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showWineDetailsDialog(
+    BuildContext context,
+    WineManager wineManager,
+    WineBottle bottle,
+    int row,
+    int col,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (context) => WineDetailsDialog(
+        bottle: bottle,
+        wineManager: wineManager,
+        row: row,
+        col: col,
+      ),
+    );
+  }
+
+  void _showWineEditDialog(
+    BuildContext context,
+    WineManager wineManager,
+    int row,
+    int col, {
+    bool isEdit = false,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (context) => WineEditDialog(
+        bottle: wineManager.grid[row][col],
+        wineManager: wineManager,
+        row: row,
+        col: col,
+        isEdit: isEdit,
+      ),
+    );
+  }
+
+  void _showDrunkWines(BuildContext context, WineManager wineManager) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (context) => DrunkWinesDialog(wineManager: wineManager),
+    );
+  }
+
+  void _handleBottleLongPress(
+    BuildContext context,
+    WineManager wineManager,
+    WineBottle bottle,
+    int row,
+    int col,
+  ) {
+    if (!bottle.isEmpty) {
+      _showBottleOptionsMenu(context, wineManager, bottle, row, col);
+    } else if (wineManager.hasCopiedWine) {
+      _showEmptySlotOptionsMenu(context, wineManager, row, col);
+    } else {
+      _showWineEditDialog(context, wineManager, row, col);
+    }
+  }
+
+  void _showBottleOptionsMenu(
+    BuildContext context,
+    WineManager wineManager,
+    WineBottle bottle,
+    int row,
+    int col,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Edit Wine'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showWineEditDialog(context, wineManager, row, col,
+                      isEdit: true);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy),
+                title: const Text('Copy Wine'),
+                onTap: () {
+                  wineManager.copyWine(bottle);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text(
+                          'Wine copied. Long-press an empty slot to paste.'),
+                      backgroundColor: Colors.green[700],
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.wine_bar),
+                title: const Text('Drink Wine'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDrinkConfirmation(
+                      context, wineManager, bottle, row, col);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Delete Wine',
+                    style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDeleteConfirmation(context, wineManager, row, col);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showEmptySlotOptionsMenu(
+    BuildContext context,
+    WineManager wineManager,
+    int row,
+    int col,
+  ) {
+    bool isProcessing = false;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (wineManager.hasCopiedWine)
+                    ListTile(
+                      leading: isProcessing 
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.paste),
+                      title: const Text('Paste Wine'),
+                      enabled: !isProcessing,
+                      onTap: () async {
+                        setState(() => isProcessing = true);
+                        try {
+                          await wineManager.pasteWine(row, col);
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Wine pasted successfully'),
+                                backgroundColor: Colors.green[700],
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error pasting wine: ${e.toString()}'),
+                                backgroundColor: Colors.red[700],
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.add),
+                    title: const Text('Add New Wine'),
+                    enabled: !isProcessing,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showWineEditDialog(context, wineManager, row, col);
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+ void _showDrinkConfirmation(
+    BuildContext context,
+    WineManager wineManager,
+    WineBottle bottle,
+    int row,
+    int col,
+  ) {
+    bool isProcessing = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Drink Wine'),
+              content: const Text('Mark this wine as drunk?'),
+              actions: [
+                TextButton(
+                  onPressed: isProcessing ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: isProcessing
+                      ? null
+                      : () async {
+                          setState(() => isProcessing = true);
+                          try {
+                            await wineManager.markAsDrunk(bottle, row, col);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text('Wine marked as drunk'),
+                                  backgroundColor: Colors.green[700],
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error: ${e.toString()}'),
+                                  backgroundColor: Colors.red[700],
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  child: isProcessing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Drink'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+   void _showDeleteConfirmation(
+    BuildContext context,
+    WineManager wineManager,
+    int row,
+    int col,
+  ) {
+    bool isProcessing = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Delete Wine'),
+              content: const Text('Are you sure you want to delete this wine?'),
+              actions: [
+                TextButton(
+                  onPressed: isProcessing ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: isProcessing
+                      ? null
+                      : () async {
+                          setState(() => isProcessing = true);
+                          try {
+                            await wineManager.deleteWine(row, col);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text('Wine deleted'),
+                                  backgroundColor: Colors.red[700],
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error: ${e.toString()}'),
+                                  backgroundColor: Colors.red[700],
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.red,
+                  ),
+                  child: isProcessing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Delete'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMoreMenu(BuildContext context, WineManager wineManager) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert),
+      onSelected: (value) async {
+        switch (value) {
+          case 'browse':
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const BrowseUsersScreen(),
+              ),
+            );
+            break;
+          case 'share':
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Theme.of(context).cardColor,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              builder: (context) => ShareDialog(wineManager: wineManager),
+            );
+            break;
+          case 'settings':
+            showDialog(
+              context: context,
+              builder: (context) => SettingsDialog(wineManager: wineManager),
+            );
+            break;
+          case 'logout':
+            final shouldLogout = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Confirm Logout'),
+                content: const Text('Are you sure you want to logout?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.red[400],
+                    ),
+                    child: const Text('Logout'),
+                  ),
+                ],
+              ),
+            );
+
+            if (shouldLogout == true) {
+              final authProvider = context.read<AuthProvider>();
+              await authProvider.signOut();
+              if (context.mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/signin',
+                  (route) => false,
+                );
+              }
+            }
+            break;
+        }
+      },
+      itemBuilder: (BuildContext context) => [
+        const PopupMenuItem<String>(
+          value: 'browse',
+          child: Row(
+            children: [
+              Icon(Icons.people, size: 20),
+              SizedBox(width: 8),
+              Text('Browse Collections'),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'share',
+          child: Row(
+            children: [
+              Icon(Icons.share, size: 20),
+              SizedBox(width: 8),
+              Text('Share'),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'settings',
+          child: Row(
+            children: [
+              Icon(Icons.settings, size: 20),
+              SizedBox(width: 8),
+              Text('Settings'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'logout',
+          child: Row(
+            children: [
+              Icon(Icons.logout, size: 20, color: Colors.red[400]),
+              const SizedBox(width: 8),
+              Text('Logout', style: TextStyle(color: Colors.red[400])),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+--- End of File: ./features/wine_collection/presentation/screens/wine_grid_screen.dart ---
+--- Start of File: ./features/wine_collection/presentation/dialogs/share_dialog.dart ---
+import 'package:flutter/material.dart';
+import '../managers/wine_manager.dart';
+
+class ShareDialog extends StatelessWidget {
+  final WineManager wineManager;
+
+  const ShareDialog({
+    super.key,
+    required this.wineManager,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[600],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.mail_outline),
+            title: const Text('Share via Email'),
+            onTap: () {
+              Navigator.pop(context);
+              // ShareHelper.shareWineList(wineManager);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.share),
+            title: const Text('Share via Other Apps'),
+            onTap: () {
+              Navigator.pop(context);
+              // ShareHelper.shareWineList(wineManager);
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+--- End of File: ./features/wine_collection/presentation/dialogs/share_dialog.dart ---
+--- Start of File: ./features/wine_collection/presentation/dialogs/drunk_wines_dialog.dart ---
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../domain/models/wine_bottle.dart';
+import '../managers/wine_manager.dart';
+import '../../utils/wine_type_helper.dart';
+
+class DrunkWinesDialog extends StatelessWidget {
+  final WineManager wineManager;
+
+  const DrunkWinesDialog({
+    super.key,
+    required this.wineManager,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sortedDrunkWines = List<WineBottle>.from(wineManager.drunkWines)
+      ..sort((a, b) => (b.dateDrunk ?? DateTime.now())
+          .compareTo(a.dateDrunk ?? DateTime.now()));
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.9,
+      builder: (context, scrollController) => Column(
+        children: [
+          _buildHeader(),
+          if (sortedDrunkWines.isEmpty)
+            _buildEmptyState()
+          else
+            _buildDrunkWinesList(sortedDrunkWines, scrollController),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Container(
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+            color: Colors.grey[800],
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Drunk Wines',
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return const Expanded(
+      child: Center(
+        child: Text(
+          'No drunk wines yet',
+          style: TextStyle(
+            color: Colors.grey,
+            fontSize: 16,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrunkWinesList(
+      List<WineBottle> sortedDrunkWines, ScrollController scrollController) {
+    return Expanded(
+      child: ListView.builder(
+        controller: scrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        itemCount: sortedDrunkWines.length,
+        itemBuilder: (context, index) {
+          final wine = sortedDrunkWines[index];
+          return Dismissible(
+            key: ObjectKey(wine),
+            background: Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.red[400],
+                borderRadius: BorderRadius.circular(24),
+              ),
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 24),
+              child: const Icon(
+                Icons.delete,
+                color: Colors.white,
+              ),
+            ),
+            direction: DismissDirection.endToStart,
+            onDismissed: (direction) => _handleDismiss(context, wine),
+            child: _buildDrunkWineCard(wine),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDrunkWineCard(WineBottle wine) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 120,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 100,
+                child: _buildWineImage(wine.imagePath),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        wine.name ?? 'Unnamed Wine',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      if (wine.year != null) ...[
+                        Text(
+                          wine.year!,
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                      Text(
+                        'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                        ),
+                      ),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: WineTypeHelper.getTypeColor(wine.type!)
+                                  .withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.wine_bar,
+                                  size: 16,
+                                  color: WineTypeHelper.getTypeColor(wine.type!),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  WineTypeHelper.getTypeName(wine.type!),
+                                  style: TextStyle(
+                                    color: WineTypeHelper.getTypeColor(wine.type!),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          if (wine.rating != null)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.star, color: Colors.amber[400], size: 16),
+                                const SizedBox(width: 4),
+                                Text(
+                                  wine.rating!.toString(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWineImage(String? imagePath) {
+    if (imagePath == null) {
+      return Container(
+        color: Colors.grey[900],
+        child: const Center(
+          child: Icon(
+            Icons.wine_bar,
+            color: Colors.white24,
+            size: 32,
+          ),
+        ),
+      );
+    }
+
+    if (imagePath.startsWith('http')) {
+      return CachedNetworkImage(
+        imageUrl: imagePath,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          color: Colors.grey[900],
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+        errorWidget: (context, url, error) => _buildImageError(),
+      );
+    } else {
+      return Image.file(
+        File(imagePath),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildImageError(),
+      );
+    }
+  }
+
+  Widget _buildImageError() {
+    return Container(
+      color: Colors.grey[900],
+      child: const Center(
+        child: Icon(
+          Icons.error_outline,
+          color: Colors.white24,
+          size: 32,
+        ),
+      ),
+    );
+  }
+
+  void _handleDismiss(BuildContext context, WineBottle wine) {
+    wineManager.removeDrunkWine(wine);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Wine removed from history'),
+        backgroundColor: Colors.red[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: Colors.white,
+          onPressed: () async {
+            wineManager.drunkWines.add(wine);
+            wineManager.drunkWines.sort((a, b) =>
+                (b.dateDrunk ?? DateTime.now())
+                    .compareTo(a.dateDrunk ?? DateTime.now()));
+            await wineManager.saveData();
+          },
+        ),
+      ),
+    );
+  }
+}
+--- End of File: ./features/wine_collection/presentation/dialogs/drunk_wines_dialog.dart ---
+--- Start of File: ./features/wine_collection/presentation/dialogs/first_time_setup_dialog.dart ---
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../domain/models/grid_settings.dart';
+
+class FirstTimeSetupDialog extends StatefulWidget {
+  const FirstTimeSetupDialog({super.key});
+
+  @override
+  State<FirstTimeSetupDialog> createState() => _FirstTimeSetupDialogState();
+}
+
+class _FirstTimeSetupDialogState extends State<FirstTimeSetupDialog> {
+  int rows = 4;
+  int columns = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        'Setup Your Wine Fridge',
+        style: GoogleFonts.playfairDisplay(
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Choose the size of your wine fridge grid.',
+            style: TextStyle(color: Colors.grey),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Rows: $rows',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(
+                    width: 200,
+                    child: Slider(
+                      value: rows.toDouble(),
+                      min: 1,
+                      max: 8,
+                      divisions: 7,
+                      onChanged: (value) {
+                        setState(() {
+                          rows = value.round();
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Columns: $columns',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(
+                    width: 200,
+                    child: Slider(
+                      value: columns.toDouble(),
+                      min: 1,
+                      max: 6,
+                      divisions: 5,
+                      onChanged: (value) {
+                        setState(() {
+                          columns = value.round();
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () {
+            Navigator.of(context).pop(
+              GridSettings(rows: rows, columns: columns),
+            );
+          },
+          child: const Text('Set Up'),
+        ),
+      ],
+    );
+  }
+}
+
+--- End of File: ./features/wine_collection/presentation/dialogs/first_time_setup_dialog.dart ---
+--- Start of File: ./features/wine_collection/presentation/dialogs/wine_edit_dialog.dart ---
+import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:wine_inventory/features/auth/presentation/providers/auth_provider.dart';
+import 'package:wine_inventory/features/wine_collection/presentation/screens/wine_photo_screen.dart';
+import 'package:wine_inventory/features/wine_collection/presentation/widgets/wine_type_selector.dart';
+import '../../../../core/models/wine_type.dart';
+import '../../domain/models/wine_bottle.dart';
+import '../managers/wine_manager.dart';
+import '../widgets/wine_year_picker.dart';
+
+class WineEditDialog extends StatefulWidget {
+  final WineBottle bottle;
+  final WineManager wineManager;
+  final int row;
+  final int col;
+  final bool isEdit;
+
+  const WineEditDialog({
+    super.key,
+    required this.bottle,
+    required this.wineManager,
+    required this.row,
+    required this.col,
+    this.isEdit = false,
+  });
+
+  @override
+  WineEditDialogState createState() => WineEditDialogState();
+}
+
+class WineEditDialogState extends State<WineEditDialog> {
+  late TextEditingController nameController;
+  late TextEditingController notesController;
+  late TextEditingController priceController;
+  late String? selectedYear;
+  late WineType? selectedType;
+  late bool hasPhoto;
+  bool _isLoading = false;
+  bool isForTrade = false;
+
+@override
+void initState() {
+  super.initState();
+  print('Bottle isForTrade value: ${widget.bottle.isForTrade}'); // Debug log
+  nameController = TextEditingController(text: widget.bottle.name);
+  notesController = TextEditingController(text: widget.bottle.notes);
+  priceController = TextEditingController(
+    text: widget.bottle.price?.toStringAsFixed(2) ?? '',
+  );
+  selectedYear = widget.bottle.year;
+  selectedType = widget.bottle.type;
+  hasPhoto = widget.bottle.imagePath != null;
+  isForTrade = widget.bottle.isForTrade;
+  print('Set initial isForTrade to: $isForTrade'); // Debug log
+}
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    notesController.dispose();
+    priceController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildHeader(context),
+                  const SizedBox(height: 24),
+                  _buildNameField(),
+                  const SizedBox(height: 24),
+                  _buildWineTypeSelector(),
+                  const SizedBox(height: 24),
+                  _buildYearSelector(context),
+                  const SizedBox(height: 24),
+                  _buildNotesField(),
+                  const SizedBox(height: 24),
+                  _buildPriceField(),
+                  const SizedBox(height: 24),
+                  _buildTradeOption(),
+                  const SizedBox(height: 24),
+                  _buildPhotoSection(),
+                  const SizedBox(height: 24),
+                  _buildSaveButton(),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_isLoading)
+          Container(
+            color: Colors.black54,
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          widget.isEdit ? 'Edit Wine' : 'Add Wine',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.close, color: Colors.white, size: 28),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNameField() {
+    return TextField(
+      controller: nameController,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: 'Wine Name',
+        labelStyle: const TextStyle(color: Colors.white70),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white24),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red[400]!),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWineTypeSelector() {
+    return WineTypeSelector(
+      selectedType: selectedType,
+      onTypeSelected: (type) {
+        setState(() {
+          selectedType = type;
+        });
+      },
+    );
+  }
+
+  Widget _buildYearSelector(BuildContext context) {
+    return WineYearPicker(
+      selectedYear: selectedYear,
+      onYearSelected: (year) {
+        setState(() {
+          selectedYear = year;
+        });
+      },
+    );
+  }
+
+  Widget _buildNotesField() {
+    return TextField(
+      controller: notesController,
+      maxLines: 3,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: 'Tasting Notes',
+        labelStyle: const TextStyle(color: Colors.white70),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white24),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red[400]!),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriceField() {
+    return TextField(
+      controller: priceController,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: 'Price',
+        labelStyle: const TextStyle(color: Colors.white70),
+        prefixText: '\$ ',
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[800]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red[400]!),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTradeOption() {
+  return Container(
+    decoration: BoxDecoration(
+      border: Border.all(color: Colors.white24),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: SwitchListTile(
+      title: const Text(
+        'Available for Trade',
+        style: TextStyle(color: Colors.white),
+      ),
+      subtitle: Text(
+        'Let others know this wine is available for trading',
+        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+      ),
+      value: isForTrade,
+      onChanged: (value) {
+        print('Changing isForTrade to: $value'); // Debug log
+        setState(() {
+          isForTrade = value;
+        });
+      },
+      activeColor: Colors.green,
+    ),
+  );
+}
+
+  Widget _buildPhotoSection() {
+    return Column(
+      children: [
+        if (hasPhoto && widget.bottle.imagePath != null)
+          Container(
+            height: 200,
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: widget.bottle.imagePath!.startsWith('http')
+                  ? CachedNetworkImage(
+                      imageUrl: widget.bottle.imagePath!,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      errorWidget: (context, url, error) => _buildImageError(),
+                    )
+                  : Image.file(
+                      File(widget.bottle.imagePath!),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildImageError(),
+                    ),
+            ),
+          ),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _isLoading ? null : _handleImageSelection,
+            icon: Icon(
+              hasPhoto ? Icons.check_circle : Icons.add_a_photo,
+              size: 20,
+              color: hasPhoto ? Colors.green : Colors.white,
+            ),
+            label: Text(
+              hasPhoto ? 'Change Photo' : 'Add Photo',
+              style: TextStyle(
+                fontSize: 16,
+                color: hasPhoto ? Colors.green : Colors.white,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(
+                color: hasPhoto ? Colors.green : Colors.red[400]!,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImageError() {
+    return Container(
+      color: Colors.grey[900],
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: Colors.white54,
+            size: 32,
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Error loading image',
+            style: TextStyle(
+              color: Colors.white54,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: FilledButton.icon(
+        onPressed: _isLoading ? null : _saveWine,
+        icon: const Icon(Icons.save),
+        label: const Text(
+          'Save',
+          style: TextStyle(fontSize: 18),
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.red[400],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleImageSelection() async {
+    final imagePath = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WinePhotoScreen(),
+      ),
+    );
+
+    if (imagePath != null) {
+      setState(() {
+        widget.bottle.imagePath = imagePath;
+        hasPhoto = true;
+      });
+
+      if (mounted) {
+        _showSuccessMessage();
+      }
+    }
+  }
+
+  Future<String?> _uploadImageIfNeeded() async {
+    if (widget.bottle.imagePath != null &&
+        !widget.bottle.imagePath!.startsWith('http')) {
+      try {
+        return await widget.wineManager.repository
+            .uploadWineImage(widget.bottle.imagePath!);
+      } catch (e) {
+        print('Error uploading image: $e');
+        return null;
+      }
+    }
+    return widget.bottle.imagePath;
+  }
+
+  Future<void> _saveWine() async {
+  try {
+    setState(() => _isLoading = true);
+
+    final imageUrl = await _uploadImageIfNeeded();
+
+    // Parse price
+    double? price;
+    if (priceController.text.isNotEmpty) {
+      price = double.tryParse(priceController.text.replaceAll('\$', '').trim());
+      if (price == null) {
+        throw Exception('Invalid price format');
+      }
+    }
+
+    final userId = context.read<AuthProvider>().user?.id;
+    
+    print('Saving wine with isForTrade: $isForTrade'); // Debug log
+    widget.bottle.name = nameController.text;
+    widget.bottle.year = selectedYear;
+    widget.bottle.type = selectedType;
+    widget.bottle.notes = notesController.text;
+    widget.bottle.imagePath = imageUrl;
+    widget.bottle.price = price;
+    widget.bottle.isForTrade = isForTrade;
+    widget.bottle.ownerId = userId;
+
+    if (!widget.isEdit) {
+      widget.bottle.dateAdded = DateTime.now();
+    }
+
+    await widget.wineManager.updateWine(widget.bottle, widget.row, widget.col);
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
+  } catch (e) {
+    if (mounted) {
+      _showErrorSnackBar('Failed to save wine: ${e.toString()}');
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
+}
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red[400],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  void _showSuccessMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+            'Photo added successfully! All bottle photos will maintain the same proportions for consistency.'),
+        backgroundColor: Colors.green[700],
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+}
+--- End of File: ./features/wine_collection/presentation/dialogs/wine_edit_dialog.dart ---
+--- Start of File: ./features/wine_collection/presentation/dialogs/wine_details_dialog.dart ---
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:wine_inventory/features/wine_collection/presentation/dialogs/wine_edit_dialog.dart';
+import '../../domain/models/wine_bottle.dart';
+import '../../utils/wine_type_helper.dart';
+import '../managers/wine_manager.dart';
+
+class WineDetailsDialog extends StatefulWidget {
+  final WineBottle bottle;
+  final WineManager wineManager;
+  final int row;
+  final int col;
+
+  const WineDetailsDialog({
+    super.key,
+    required this.bottle,
+    required this.wineManager,
+    required this.row,
+    required this.col,
+  });
+
+  @override
+  State<WineDetailsDialog> createState() => _WineDetailsDialogState();
+}
+
+class _WineDetailsDialogState extends State<WineDetailsDialog> {
+  late WineBottle _bottle;
+
+  @override
+  void initState() {
+    super.initState();
+    _bottle = WineBottle(
+      name: widget.bottle.name,
+      year: widget.bottle.year,
+      notes: widget.bottle.notes,
+      dateAdded: widget.bottle.dateAdded,
+      dateDrunk: widget.bottle.dateDrunk,
+      imagePath: widget.bottle.imagePath,
+      type: widget.bottle.type,
+      rating: widget.bottle.rating,
+      isFavorite: widget.bottle.isFavorite,
+      isDrunk: widget.bottle.isDrunk,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.9,
+      builder: (context, scrollController) => SingleChildScrollView(
+        controller: scrollController,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(),
+            if (_bottle.imagePath != null) _buildImage(),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTypeChip(),
+                  const SizedBox(height: 16),
+                  _buildWineInfo(),
+                  const SizedBox(height: 24),
+                  _buildRatingAndFavorite(context),
+                  if (_bottle.notes != null && _bottle.notes!.isNotEmpty)
+                    _buildNotes(),
+                  const SizedBox(height: 32),
+                  _buildEditButton(context),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Center(
+          child: Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[800],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImage() {
+    if (_bottle.imagePath == null) return const SizedBox.shrink();
+
+    return Container(
+      height: 400,
+      width: double.infinity,
+      child: Hero(
+        tag: 'wine_image_${_bottle.imagePath}',
+        child: _bottle.imagePath!.startsWith('http')
+            ? CachedNetworkImage(
+                imageUrl: _bottle.imagePath!,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  color: Colors.grey[900],
+                  child: const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+                errorWidget: (context, url, error) => _buildImageError(),
+              )
+            : Image.file(
+                File(_bottle.imagePath!),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _buildImageError(),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildImageError() {
+    return Container(
+      height: 400,
+      color: Colors.grey[900],
+      child: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Colors.white54,
+              size: 48,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Failed to load image',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeChip() {
+    if (_bottle.type == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: WineTypeHelper.getTypeColor(_bottle.type!).withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            WineTypeHelper.getTypeIcon(_bottle.type!),
+            size: 16,
+            color: WineTypeHelper.getTypeColor(_bottle.type!),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            WineTypeHelper.getTypeName(_bottle.type!),
+            style: TextStyle(
+              color: WineTypeHelper.getTypeColor(_bottle.type!),
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWineInfo() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _bottle.name ?? '',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        if (_bottle.year != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _bottle.year!,
+            style: TextStyle(
+              color: Colors.red[300],
+              fontSize: 20,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildRatingAndFavorite(BuildContext context) {
+    return Row(
+      children: [
+        Row(
+          children: List.generate(5, (index) {
+            return IconButton(
+              icon: Icon(
+                index < (_bottle.rating ?? 0)
+                    ? Icons.star
+                    : Icons.star_border,
+                color: Colors.amber,
+                size: 20,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              constraints: const BoxConstraints(),
+              onPressed: () => _updateRating(index + 1),
+            );
+          }),
+        ),
+        const Spacer(),
+        IconButton(
+          icon: Icon(
+            _bottle.isFavorite ? Icons.favorite : Icons.favorite_border,
+            color: _bottle.isFavorite ? Colors.red[400] : Colors.white70,
+            size: 20,
+          ),
+          constraints: const BoxConstraints(),
+          padding: EdgeInsets.zero,
+          onPressed: _toggleFavorite,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNotes() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        Text(
+          'Tasting Notes',
+          style: TextStyle(
+            color: Colors.red[300],
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _bottle.notes!,
+          style: const TextStyle(
+            fontSize: 18,
+            color: Colors.white70,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEditButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: () {
+          Navigator.pop(context);
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.black,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            ),
+            builder: (context) => WineEditDialog(
+              bottle: _bottle,
+              wineManager: widget.wineManager,
+              row: widget.row,
+              col: widget.col,
+              isEdit: true,
+            ),
+          );
+        },
+        icon: const Icon(Icons.edit),
+        label: const Text('Edit Wine'),
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.red[400],
+          minimumSize: const Size(0, 56),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateRating(int rating) async {
+    setState(() {
+      if (_bottle.rating == rating) {
+        _bottle.rating = null;
+      } else {
+        _bottle.rating = rating.toDouble();
+      }
+    });
+    try {
+      await widget.wineManager.updateWine(_bottle, widget.row, widget.col);
+      if (mounted) {
+        widget.bottle.rating = _bottle.rating;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to update rating'),
+            backgroundColor: Colors.red[400],
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    setState(() {
+      _bottle.isFavorite = !_bottle.isFavorite;
+    });
+    try {
+      await widget.wineManager.updateWine(_bottle, widget.row, widget.col);
+      if (mounted) {
+        widget.bottle.isFavorite = _bottle.isFavorite;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to update favorite status'),
+            backgroundColor: Colors.red[400],
+          ),
+        );
+      }
+    }
+  }
+}
+--- End of File: ./features/wine_collection/presentation/dialogs/wine_details_dialog.dart ---
+--- Start of File: ./features/wine_collection/presentation/dialogs/settings_dialog.dart ---
+// lib/features/wine_collection/presentation/dialogs/settings_dialog.dart
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../domain/models/grid_settings.dart';
+import '../managers/wine_manager.dart';
+
+class SettingsDialog extends StatefulWidget {
+  final WineManager wineManager;
+
+  const SettingsDialog({
+    super.key,
+    required this.wineManager,
+  });
+
+  @override
+  SettingsDialogState createState() => SettingsDialogState();
+}
+
+class SettingsDialogState extends State<SettingsDialog> {
+  late int tempRows;
+  late int tempColumns;
+
+  @override
+  void initState() {
+    super.initState();
+    tempRows = widget.wineManager.settings.rows;
+    tempColumns = widget.wineManager.settings.columns;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        'Grid Settings',
+        style: GoogleFonts.playfairDisplay(
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 16),
+          Text(
+            'Rows: $tempRows',
+            style: const TextStyle(fontSize: 16),
+          ),
+          Slider(
+            value: tempRows.toDouble(),
+            min: 1,
+            max: 8,
+            divisions: 7,
+            onChanged: (value) {
+              setState(() {
+                tempRows = value.round();
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Columns: $tempColumns',
+            style: const TextStyle(fontSize: 16),
+          ),
+          Slider(
+            value: tempColumns.toDouble(),
+            min: 1,
+            max: 6,
+            divisions: 5,
+            onChanged: (value) {
+              setState(() {
+                tempColumns = value.round();
+              });
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            final newSettings = GridSettings(
+              rows: tempRows,
+              columns: tempColumns,
+            );
+            await widget.wineManager.saveSettings(newSettings);
+            Navigator.of(context).pop();
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+--- End of File: ./features/wine_collection/presentation/dialogs/settings_dialog.dart ---
+--- Start of File: ./features/wine_collection/presentation/widgets/wine_type_selector.dart ---
+import 'package:flutter/material.dart';
+import '../../../../core/models/wine_type.dart';
+import '../../utils/wine_type_helper.dart';
+
+class WineTypeSelector extends StatelessWidget {
+  final WineType? selectedType;
+  final Function(WineType) onTypeSelected;
+
+  const WineTypeSelector({
+    super.key,
+    required this.selectedType,
+    required this.onTypeSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Wine Type',
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 16,
+          ),
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: WineType.values.map((type) {
+              final isSelected = selectedType == type;
+              final color = WineTypeHelper.getTypeColor(type);
+              
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: InkWell(
+                  onTap: () => onTypeSelected(type),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected ? color.withOpacity(0.2) : Colors.transparent,
+                      border: Border.all(
+                        color: isSelected ? color : Colors.white24,
+                        width: 1.5,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          WineTypeHelper.getTypeIcon(type),
+                          color: isSelected ? color : Colors.white70,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          WineTypeHelper.getTypeName(type),
+                          style: TextStyle(
+                            color: isSelected ? color : Colors.white70,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+--- End of File: ./features/wine_collection/presentation/widgets/wine_type_selector.dart ---
+--- Start of File: ./features/wine_collection/presentation/widgets/wine_type_button.dart ---
+import 'package:flutter/material.dart';
+import '../../../../core/models/wine_type.dart';
+
+class WineTypeButton extends StatelessWidget {
+  final WineType type;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const WineTypeButton({
+    super.key,
+    required this.type,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (type) {
+      WineType.red => Colors.red[400],
+      WineType.white => Colors.amber[400],
+      WineType.sparkling => Colors.blue[400],
+      WineType.rose => Colors.pink[300],
+      WineType.dessert => Colors.orange[400],
+    };
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color?.withOpacity(0.2) : Colors.transparent,
+          border: Border.all(
+            color: isSelected ? color! : Colors.grey[700]!,
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          type.name[0].toUpperCase() + type.name.substring(1),
+          style: TextStyle(
+            color: isSelected ? color : Colors.grey[400],
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+}
+--- End of File: ./features/wine_collection/presentation/widgets/wine_type_button.dart ---
+--- Start of File: ./features/wine_collection/presentation/widgets/wine_year_picker.dart ---
+import 'package:flutter/material.dart';
+
+class WineYearPicker extends StatelessWidget {
+  final String? selectedYear;
+  final ValueChanged<String?> onYearSelected;
+
+  const WineYearPicker({
+    super.key,
+    required this.selectedYear,
+    required this.onYearSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> years = List.generate(DateTime.now().year - 1950 + 1,
+        (index) => (DateTime.now().year - index).toString());
+
+    int initialYearIndex = years.indexOf(selectedYear ?? years[0]);
+    if (initialYearIndex < 0) initialYearIndex = 0;
+
+    return GestureDetector(
+      onTap: () => _showYearPicker(context, years, initialYearIndex),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white24),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              selectedYear ?? 'Select Year',
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.white,
+              ),
+            ),
+            const Icon(Icons.arrow_drop_down, color: Colors.white70),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showYearPicker(
+      BuildContext context, List<String> years, int initialYearIndex) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (context) {
+        String currentSelectedYear = years[initialYearIndex];
+
+        return StatefulBuilder(
+          builder: (context, setState) => Container(
+            height: 300,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[600],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListWheelScrollView.useDelegate(
+                    controller: FixedExtentScrollController(
+                      initialItem: initialYearIndex,
+                    ),
+                    itemExtent: 40,
+                    perspective: 0.005,
+                    diameterRatio: 1.2,
+                    physics: const FixedExtentScrollPhysics(),
+                    onSelectedItemChanged: (index) {
+                      setState(() {
+                        currentSelectedYear = years[index];
+                      });
+                    },
+                    childDelegate: ListWheelChildBuilderDelegate(
+                      childCount: years.length,
+                      builder: (context, index) {
+                        final isSelected = years[index] == currentSelectedYear;
+                        return Container(
+                          alignment: Alignment.center,
+                          child: Text(
+                            years[index],
+                            style: TextStyle(
+                              fontSize: 20,
+                              color:
+                                  isSelected ? Colors.red[400] : Colors.white70,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      onYearSelected(currentSelectedYear); // Update the parent
+                      Navigator.pop(context);
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.red[400],
+                    ),
+                    child: const Text('Confirm'),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+--- End of File: ./features/wine_collection/presentation/widgets/wine_year_picker.dart ---
+--- Start of File: ./features/wine_collection/presentation/widgets/wine_bottle_card.dart ---
+import 'dart:io';
+import 'package:flutter/material.dart';
+import '../../domain/models/wine_bottle.dart';
+import '../../utils/wine_type_helper.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+class WineBottleCard extends StatelessWidget {
+  final WineBottle bottle;
+  final Animation<double> animation;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  const WineBottleCard({
+    super.key,
+    required this.bottle,
+    required this.animation,
+    this.onTap,
+    this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: animation,
+      child: Card(
+        margin: const EdgeInsets.all(4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: bottle.isEmpty
+              ? _buildEmptyBottle()
+              : _buildBottleContent(context),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyBottle() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Colors.grey[800]!,
+          width: 2,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.add,
+          size: 32,
+          color: Colors.white54,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottleContent(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _buildBottleImage(),
+        _buildBottleOverlay(),
+        _buildBottleInfo(context),
+        if (bottle.type != null) _buildTypeIndicator(),
+        if (bottle.isFavorite) _buildFavoriteIndicator(),
+        if (bottle.isForTrade)
+  Positioned(
+    top: 8,
+    right: 8,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Icon(
+        Icons.swap_horiz,
+        color: Colors.green,
+        size: 16,
+      ),
+    ),
+  ),
+      ],
+    );
+  }
+
+  Widget _buildBottleImage() {
+    if (bottle.imagePath == null) {
+      return Container(color: Colors.grey[900]);
+    }
+
+    if (bottle.imagePath!.startsWith('http')) {
+      return Hero(
+        tag: 'wine_image_${bottle.imagePath}',
+        child: CachedNetworkImage(
+          imageUrl: bottle.imagePath!,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => Container(
+            color: Colors.grey[900],
+            child: const Center(child: CircularProgressIndicator()),
+          ),
+          errorWidget: (context, url, error) => _buildImageError(),
+        ),
+      );
+    } else {
+      return Hero(
+        tag: 'wine_image_${bottle.imagePath}',
+        child: Image.file(
+          File(bottle.imagePath!),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _buildImageError(),
+        ),
+      );
+    }
+  }
+
+  Widget _buildImageError() {
+    return Container(
+      color: Colors.grey[900],
+      child: const Center(
+        child: Icon(Icons.error_outline, color: Colors.white54, size: 32),
+      ),
+    );
+  }
+
+  Widget _buildBottleOverlay() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withOpacity(0.2),
+            Colors.black.withOpacity(0.8),
+          ],
+          stops: const [0.5, 0.9],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeIndicator() {
+    return Positioned(
+      top: 8,
+      left: 8,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: WineTypeHelper.getTypeColor(bottle.type!).withOpacity(0.9),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: ConstrainedBox(
+          // Added ConstrainedBox
+          constraints:
+              const BoxConstraints(maxWidth: 120), // Limit maximum width
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                WineTypeHelper.getTypeIcon(bottle.type!),
+                color: Colors.white,
+                size: 14,
+              ),
+              const SizedBox(width: 4),
+              // Flexible(
+              //   // Added Flexible
+              //   child: Text(
+              //     WineTypeHelper.getTypeName(bottle.type!),
+              //     style: const TextStyle(
+              //       color: Colors.white,
+              //       fontSize: 12,
+              //       fontWeight: FontWeight.bold,
+              //     ),
+              //     overflow: TextOverflow.ellipsis,
+              //   ),
+              // ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFavoriteIndicator() {
+    return const Positioned(
+      top: 8,
+      right: 8,
+      child: Icon(
+        Icons.favorite,
+        color: Colors.red,
+        size: 20,
+      ),
+    );
+  }
+
+  // In WineBottleCard class, update _buildBottleInfo:
+
+  Widget _buildBottleInfo(BuildContext context) {
+    return Positioned(
+      left: 8,
+      right: 8,
+      bottom: 8,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (bottle.name != null)
+            Text(
+              bottle.name!,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min, // Changed to min
+            children: [
+              if (bottle.year != null)
+                Flexible(
+                  // Added Flexible
+                  child: Text(
+                    bottle.year!,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              if (bottle.year != null && bottle.rating != null)
+                const SizedBox(width: 8),
+              if (bottle.rating != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.star,
+                      color: Colors.amber[400],
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      bottle.rating!.toStringAsFixed(1),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              // if (bottle.price != null) ...[
+              //   const SizedBox(height: 4),
+              //   Text(
+              //     '\$${bottle.price!.toStringAsFixed(2)}',
+              //     style: TextStyle(
+              //       color: Colors.green[400],
+              //       fontSize: 14,
+              //       fontWeight: FontWeight.bold,
+              //     ),
+              //   ),
+              // ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+--- End of File: ./features/wine_collection/presentation/widgets/wine_bottle_card.dart ---
+--- Start of File: ./firebase_options.dart ---
+// File generated by FlutterFire CLI.
+// ignore_for_file: type=lint
+import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+
+/// Default [FirebaseOptions] for use with your Firebase apps.
+///
+/// Example:
+/// ```dart
+/// import 'firebase_options.dart';
+/// // ...
+/// await Firebase.initializeApp(
+///   options: DefaultFirebaseOptions.currentPlatform,
+/// );
+/// ```
+class DefaultFirebaseOptions {
+  static FirebaseOptions get currentPlatform {
+    if (kIsWeb) {
+      throw UnsupportedError(
+        'DefaultFirebaseOptions have not been configured for web - '
+        'you can reconfigure this by running the FlutterFire CLI again.',
+      );
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for android - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
+      case TargetPlatform.iOS:
+        return ios;
+      case TargetPlatform.macOS:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for macos - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
+      case TargetPlatform.windows:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for windows - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
+      case TargetPlatform.linux:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for linux - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
+      default:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions are not supported for this platform.',
+        );
+    }
+  }
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyAKm0KTfEj9z9Jduk3Hz9m37FHt-P21KtM',
+    appId: '1:377181264365:ios:57a5044a150a530c5d6fe4',
+    messagingSenderId: '377181264365',
+    projectId: 'winestocker-30a94',
+    storageBucket: 'winestocker-30a94.firebasestorage.app',
+    iosBundleId: 'com.kozlovski.winestock',
+  );
+
+}
+--- End of File: ./firebase_options.dart ---
+--- Start of File: ./main.dart ---
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:wine_inventory/core/widgets/dismiss_keyboard_wrapper.dart';
+import 'package:wine_inventory/features/wine_collection/data/repositories/wine_repository.dart';
+import 'package:wine_inventory/features/wine_collection/presentation/managers/wine_manager.dart';
+import 'package:wine_inventory/features/wine_collection/presentation/screens/wine_grid_screen.dart';
+import 'package:wine_inventory/firebase_options.dart';
+// Providers
+import 'features/auth/presentation/providers/auth_provider.dart';
+
+// Repositories
+import 'features/auth/data/repositories/auth_repository.dart';
+
+// Screens
+import 'features/auth/presentation/screens/sign_in_screen.dart';
+import 'features/auth/presentation/screens/sign_up_screen.dart';
+
+// Theme
+import 'core/theme/app_theme.dart';
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  runApp(const MyApp());
+}
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DismissKeyboardWrapper(
+      child: MultiProvider(
+        providers: [
+          Provider<AuthRepository>(
+            create: (_) => AuthRepository(),
+          ),
+          ChangeNotifierProvider<AuthProvider>(
+            create: (context) => AuthProvider(
+              context.read<AuthRepository>(),
+            ),
+          ),
+          ChangeNotifierProxyProvider<AuthProvider, WineManager?>(
+            create: (_) => null,
+            update: (context, authProvider, previousManager) {
+              if (authProvider.user != null) {
+                if (previousManager?.repository.userId != authProvider.user!.id) {
+                  return WineManager(WineRepository(authProvider.user!.id));
+                }
+                return previousManager;
+              }
+              return null;
+            },
+          ),
+        ],
+        child: MaterialApp(
+          title: 'Wine Collection',
+          theme: AppTheme.darkTheme,
+          home: const AuthWrapper(),
+          onGenerateRoute: (settings) {
+            if (settings.name == '/home') {
+              final authProvider = context.read<AuthProvider>();
+              if (authProvider.user == null) {
+                return MaterialPageRoute(builder: (_) => const SignInScreen());
+              }
+              return MaterialPageRoute(
+                builder: (_) => WineGridScreen(userId: authProvider.user!.id),
+              );
+            }
+            switch (settings.name) {
+              case '/signin':
+                return MaterialPageRoute(builder: (_) => const SignInScreen());
+              case '/signup':
+                return MaterialPageRoute(builder: (_) => const SignUpScreen());
+              default:
+                return null;
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, _) {
+        if (authProvider.isAuthenticated) {
+          return FutureBuilder(
+            future: _handleFirstTimeSetup(context),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+              return WineGridScreen(userId: authProvider.user!.id);
+            },
+          );
+        }
+        return const SignInScreen();
+      },
+    );
+  }
+
+  Future<void> _handleFirstTimeSetup(BuildContext context) async {
+    final wineManager = context.read<WineManager>();
+    await wineManager.showFirstTimeSetup(context);
+  }
+}
+
+--- End of File: ./main.dart ---
+--- Start of File: ./combine_code.dart ---
+import 'dart:io';
+
+void main() async {
+  final directory = Directory('.');
+  final outputFileName = 'combined_code.txt';
+
+  final outputFile = File(outputFileName);
+  if (await outputFile.exists()) {
+    await outputFile.delete();
+  }
+  await outputFile.create();
+
+  await for (var entity in directory.list(recursive: true, followLinks: false)) {
+    if (entity is File && _isCodeFile(entity)) {
+      final relativePath = entity.path;
+      final fileContent = await entity.readAsString();
+      await outputFile.writeAsString('''
+--- Start of File: $relativePath ---
+$fileContent
+--- End of File: $relativePath ---
+''', mode: FileMode.append);
+    }
+  }
+
+  print('All code has been combined into $outputFileName');
+}
+
+bool _isCodeFile(File file) {
+  final extensions = ['.dart', '.yaml', '.json', '.html', '.css', '.js'];
+  final fileExtension = file.path.split('.').last;
+  return extensions.contains('.$fileExtension');
+}
+
+--- End of File: ./combine_code.dart ---

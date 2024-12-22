@@ -1,0 +1,1 @@
+enum WineType { red, white, sparkling, rose, dessert }
