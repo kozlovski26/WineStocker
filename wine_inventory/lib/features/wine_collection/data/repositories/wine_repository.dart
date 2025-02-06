@@ -7,6 +7,7 @@ import '../../domain/models/grid_settings.dart';
 class WineRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  FirebaseFirestore get firestore => _firestore;
   final String userId;
 
   WineRepository(this.userId);
@@ -19,6 +20,37 @@ class WineRepository {
 
   CollectionReference get _drunkWines =>
     _firestore.collection('users').doc(userId).collection('drunk_wines');
+
+Future<DocumentReference<Map<String, dynamic>>?> getWineDocument(int row, int col) async {
+  final snapshot = await _userWines
+      .where('position.row', isEqualTo: row)
+      .where('position.col', isEqualTo: col)
+      .limit(1)
+      .get();
+
+  if (snapshot.docs.isNotEmpty) {
+    return snapshot.docs.first.reference.withConverter<Map<String, dynamic>>(
+      fromFirestore: (snap, _) => snap.data() ?? {},
+      toFirestore: (data, _) => data,
+    );
+  }
+  return null;
+}
+
+
+Future<void> updateWinePosition(WineBottle bottle, int row, int col) async {
+  final snapshot = await _userWines
+      .where('name', isEqualTo: bottle.name)
+      .limit(1)
+      .get();
+
+  if (snapshot.docs.isNotEmpty) {
+    await snapshot.docs.first.reference.update({
+      'position': {'row': row, 'col': col},
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+}
 
   Future<String?> uploadWineImage(String localPath) async {
     try {

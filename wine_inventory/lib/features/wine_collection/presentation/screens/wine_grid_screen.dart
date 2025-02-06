@@ -330,87 +330,81 @@ Widget _buildGridView(WineManager wineManager) {
   }
 
   void _handleBottleLongPress(
-    BuildContext context,
-    WineManager wineManager,
-    WineBottle bottle,
-    int row,
-    int col,
-  ) {
-    if (!bottle.isEmpty) {
-      _showBottleOptionsMenu(context, wineManager, bottle, row, col);
-    } else if (wineManager.hasCopiedWine) {
-      _showEmptySlotOptionsMenu(context, wineManager, row, col);
-    } else {
-      _showWineEditDialog(context, wineManager, row, col);
-    }
+  BuildContext context,
+  WineManager wineManager,
+  WineBottle bottle,
+  int row,
+  int col,
+) {
+  if (!bottle.isEmpty) {
+    _showBottleOptionsMenu(context, wineManager, bottle, row, col);
+  } else if (wineManager.hasCopiedWine) {
+    _showEmptySlotOptionsMenu(context, wineManager, row, col);
+  } else {
+    _showWineEditDialog(context, wineManager, row, col);
   }
+}
 
-  void _showBottleOptionsMenu(
-    BuildContext context,
-    WineManager wineManager,
-    WineBottle bottle,
-    int row,
-    int col,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+void _showBottleOptionsMenu(
+  BuildContext context,
+  WineManager wineManager,
+  WineBottle bottle,
+  int row,
+  int col,
+) {
+  showModalBottomSheet(
+    context: context,
+    builder: (BuildContext context) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Edit Wine'),
+              onTap: () {
+                Navigator.pop(context);
+                _showWineEditDialog(context, wineManager, row, col, isEdit: true);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy Wine'),
+              onTap: () {
+                wineManager.copyWine(bottle, row, col);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Wine copied. Long-press another slot to paste.'),
+                    backgroundColor: Colors.green[700],
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+            if (wineManager.hasCopiedWine)
               ListTile(
-                leading: const Icon(Icons.edit),
-                title: const Text('Edit Wine'),
-                onTap: () {
+                leading: const Icon(Icons.paste),
+                title: const Text('Replace Wine'),
+                onTap: () async {
                   Navigator.pop(context);
-                  _showWineEditDialog(context, wineManager, row, col,
-                      isEdit: true);
+                 await wineManager.pasteWine(row, col);
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.copy),
-                title: const Text('Copy Wine'),
-                onTap: () {
-                  wineManager.copyWine(bottle);
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text(
-                          'Wine copied. Long-press an empty slot to paste.'),
-                      backgroundColor: Colors.green[700],
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.wine_bar),
-                title: const Text('Drink Wine'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showDrinkConfirmation(
-                      context, wineManager, bottle, row, col);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('Delete Wine',
-                    style: TextStyle(color: Colors.red)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showDeleteConfirmation(context, wineManager, row, col);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Delete Wine', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteConfirmation(context, wineManager, row, col);
+              },
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
 
   void _showEmptySlotOptionsMenu(
     BuildContext context,

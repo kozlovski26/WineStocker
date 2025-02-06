@@ -18,7 +18,8 @@ class WineManager extends ChangeNotifier {
   bool _isLoading = false;
   bool _isInitialized = false;
   WineBottle? _copiedWine;
-
+  int _copiedWineRow = -1;
+  int _copiedWineCol = -1;
   WineManager(this.repository) : 
     _grid = [],
     settings = GridSettings.defaultSettings() {
@@ -173,30 +174,29 @@ void _updateStatistics() {
   notifyListeners();
 }
 
-  Future<void> copyWine(WineBottle bottle) async {
-    try {
-      _isLoading = true;
-      notifyListeners();
-      
-      String? newImagePath = bottle.imagePath;
-      if (bottle.imagePath != null && bottle.imagePath!.startsWith('http')) {
-        newImagePath = await repository.copyWineImage(bottle.imagePath!);
-      }
-      
-      _copiedWine = WineBottle(
-        name: bottle.name,
-        year: bottle.year,
-        notes: bottle.notes,
-        type: bottle.type,
-        rating: bottle.rating,
-        isFavorite: bottle.isFavorite,
-        imagePath: newImagePath,
-      );
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+Future<void> copyWine(WineBottle bottle, int row, int col) async {
+  try {
+    _isLoading = true;
+    notifyListeners();
+
+    // Store copied wine and its original position
+    _copiedWine = WineBottle(
+      name: bottle.name,
+      year: bottle.year,
+      notes: bottle.notes,
+      type: bottle.type,
+      rating: bottle.rating,
+      isFavorite: bottle.isFavorite,
+      imagePath: bottle.imagePath,
+    );
+    _copiedWineRow = row;
+    _copiedWineCol = col;
+
+  } finally {
+    _isLoading = false;
+    notifyListeners();
   }
+}
 
   Future<void> updateWine(WineBottle bottle, int row, int col) async {
     if (!_isValidPosition(row, col)) return;
@@ -347,37 +347,51 @@ Future<void> markAsDrunk(WineBottle bottle, int row, int col) async {
     }
   }
 
-  Future<void> pasteWine(int row, int col) async {
+ Future<void> pasteWine(int row, int col) async {
   if (!_isValidPosition(row, col) || _copiedWine == null) return;
 
   try {
-    // Ensure loading state is managed
     _isLoading = true;
     notifyListeners();
 
-    // Handle image copying
-    String? newImageUrl;
-    if (_copiedWine!.imagePath != null && _copiedWine!.imagePath!.startsWith('http')) {
-      newImageUrl = await repository.copyWineImage(_copiedWine!.imagePath!);
+    final targetWine = _grid[row][col];
+
+    if (!targetWine.isEmpty) {
+      // Swap in UI
+      _grid[row][col] = _copiedWine!;
+      _grid[_copiedWineRow][_copiedWineCol] = targetWine;
+
+      // Swap in Firestore
+      final batch = repository.firestore.batch();
+
+      final copiedWineDoc = await repository.getWineDocument(_copiedWineRow, _copiedWineCol);
+      final targetWineDoc = await repository.getWineDocument(row, col);
+
+      if (copiedWineDoc != null && targetWineDoc != null) {
+        batch.update(copiedWineDoc, {
+          'position': {'row': row, 'col': col},
+        });
+
+        batch.update(targetWineDoc, {
+          'position': {'row': _copiedWineRow, 'col': _copiedWineCol},
+        });
+
+        await batch.commit();
+      }
+    } else {
+      // Paste normally (update Firestore)
+      _grid[row][col] = _copiedWine!;
+      await repository.updateWinePosition(_copiedWine!, row, col);
     }
 
-    // Create a new WineBottle with copied details
-    final pastedWine = WineBottle(
-      name: _copiedWine!.name,
-      year: _copiedWine!.year,
-      notes: _copiedWine!.notes,
-      type: _copiedWine!.type,
-      rating: _copiedWine!.rating,
-      isFavorite: _copiedWine!.isFavorite,
-      imagePath: newImageUrl ?? _copiedWine!.imagePath,
-      dateAdded: DateTime.now(),
-      isForTrade: _copiedWine!.isForTrade,
-      price: _copiedWine!.price,
-    );
-
-    // Update the grid and save to Firestore
-    _grid[row][col] = pastedWine;
+    // Save grid changes
     await saveData();
+
+    // Clear copied wine state
+    _copiedWine = null;
+    _copiedWineRow = -1;
+    _copiedWineCol = -1;
+
   } catch (e) {
     print('Error pasting wine: $e');
     rethrow;
@@ -386,6 +400,8 @@ Future<void> markAsDrunk(WineBottle bottle, int row, int col) async {
     notifyListeners();
   }
 }
+
+
 
   List<WineBottle> getVisibleBottles() {
     if (_grid.isEmpty) return [];
