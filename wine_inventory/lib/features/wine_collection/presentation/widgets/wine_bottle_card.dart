@@ -65,8 +65,8 @@ class WineBottleCard extends StatelessWidget {
         _buildBottleImage(),
         _buildBottleOverlay(),
         _buildBottleInfo(context),
-        if (bottle.type != null) _buildTypeIndicator(),
-        if (bottle.isFavorite) _buildFavoriteIndicator(),
+        // if (bottle.type != null) _buildTypeIndicator(),
+        // if (bottle.isFavorite) _buildFavoriteIndicator(),
         if (bottle.isForTrade)
   Positioned(
     top: 8,

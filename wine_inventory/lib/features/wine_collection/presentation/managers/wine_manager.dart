@@ -404,3 +404,39 @@ Future<void> markAsDrunk(WineBottle bottle, int row, int col) async {
     super.dispose();
   }
 }
+
+extension WineManagerReorder on WineManager {
+  Future<void> reorderWines(int fromRow, int fromCol, int toRow, int toCol) async {
+    if (!_isValidPosition(fromRow, fromCol) || !_isValidPosition(toRow, toCol)) {
+      return;
+    }
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      // Store the wines
+      final sourceWine = _grid[fromRow][fromCol];
+      final targetWine = _grid[toRow][toCol];
+
+      // Swap the wines
+      _grid[fromRow][fromCol] = targetWine;
+      _grid[toRow][toCol] = sourceWine;
+
+      // Save changes to Firestore
+      await saveData();
+      
+    } catch (e) {
+      print('Error reordering wines: $e');
+      // Revert changes if save fails
+      final sourceWine = _grid[toRow][toCol];
+      final targetWine = _grid[fromRow][fromCol];
+      _grid[toRow][toCol] = targetWine;
+      _grid[fromRow][fromCol] = sourceWine;
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+}
