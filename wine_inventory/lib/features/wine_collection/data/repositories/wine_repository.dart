@@ -391,4 +391,22 @@ class WineRepository {
       rethrow;
     }
   }
+
+  Future<bool> isUserPro() async {
+    try {
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data();
+        return userData?['isPro'] == true;
+      }
+      return false;
+    } catch (e) {
+      print('Error checking pro status: $e');
+      return false;
+    }
+  }
 }

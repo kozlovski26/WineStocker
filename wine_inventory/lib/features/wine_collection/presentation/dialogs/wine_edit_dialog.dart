@@ -447,7 +447,11 @@ Widget _buildWineryField() {
       // Update the wine in the manager
       await widget.wineManager.updateWine(updatedBottle, widget.row, widget.col);
       
-      // Force an immediate refresh of the grid data
+      // Update the grid immediately with the new values
+      widget.wineManager.grid[widget.row][widget.col] = updatedBottle;
+      widget.wineManager.notifyListeners(); // Force UI update
+      
+      // Then refresh from database to ensure consistency
       await widget.wineManager.loadData();
       
       if (mounted) {

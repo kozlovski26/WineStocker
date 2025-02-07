@@ -31,6 +31,7 @@ class WineGridScreenState extends State<WineGridScreen>
   late Animation<double> _animation;
   late WineRepository _repository; // Change this to late
   late WineManager _wineManager;
+  bool _isPro = false;
   
 
   @override
@@ -44,16 +45,26 @@ class WineGridScreenState extends State<WineGridScreen>
       parent: _animationController,
       curve: Curves.easeInOut,
     );
-    _repository = WineRepository(widget.userId); // Pass userId here
+    _repository = WineRepository(widget.userId); 
     _wineManager = WineManager(_repository);
     _wineManager.loadData();
     _animationController.forward();
+    _checkProStatus();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkProStatus() async {
+    final isPro = await _repository.isUserPro();
+    if (mounted) {
+      setState(() {
+        _isPro = isPro;
+      });
+    }
   }
 
   @override
@@ -211,65 +222,13 @@ Widget _buildGridView(WineManager wineManager) {
           final col = index % wineManager.settings.columns;
           final bottle = wineManager.grid[row][col];
 
-          // If the bottle is empty, just return a DragTarget without Draggable
-          if (bottle.isEmpty) {
-            return DragTarget<WineBottle>(
-              onAccept: (draggedBottle) async {
-                await wineManager.updateWine(draggedBottle, row, col);
-              },
-              builder: (context, candidateData, rejectedData) {
-                return WineBottleCard(
-                  bottle: bottle,
-                  animation: _animation,
-                  onTap: () => _showWineEditDialog(context, wineManager, row, col), // Changed to show add wine dialog
-                  onLongPress: () => _handleBottleLongPress(context, wineManager, bottle, row, col),
-                );
-              },
-            );
-          }
-
-          // For non-empty bottles, wrap with both Draggable and DragTarget
-          return DragTarget<WineBottle>(
-            onAccept: (draggedBottle) async {
-              if (draggedBottle == bottle) return;
-              await wineManager.updateWine(draggedBottle, row, col);
-            },
-            builder: (context, candidateData, rejectedData) {
-              return Draggable<WineBottle>(
-                data: bottle,
-                feedback: Material(
-                  color: Colors.transparent,
-                  child: SizedBox(
-                    width: MediaQuery.of(context).size.width * 0.25,
-                    child: Opacity(
-                      opacity: 0.7,
-                      child: WineBottleCard(
-                        bottle: bottle,
-                        animation: _animation,
-                        onTap: () {},
-                      ),
-                    ),
-                  ),
-                ),
-                childWhenDragging: Container(
-
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
-                    border: Border.all(
-                      color: Colors.white24,
-                      width: 2,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: WineBottleCard(
-                  bottle: bottle,
-                  animation: _animation,
-                  onTap: () => _showWineDetailsDialog(context, wineManager, bottle, row, col),
-                  onLongPress: () => _handleBottleLongPress(context, wineManager, bottle, row, col),
-                ),
-              );
-            },
+          return WineBottleCard(
+            bottle: bottle,
+            animation: _animation,
+            onTap: () => bottle.isEmpty 
+              ? _showWineEditDialog(context, wineManager, row, col)
+              : _showWineDetailsDialog(context, wineManager, bottle, row, col),
+            onLongPress: () => _handleBottleLongPress(context, wineManager, bottle, row, col),
           );
         },
       ),
@@ -441,7 +400,7 @@ void _showBottleOptionsMenu(
             ),
              ListTile(
               leading: const Icon(Icons.wine_bar, color: Colors.green),
-              title: const Text('DRINK Wine', style: TextStyle(color: Colors.green)),
+              title: const Text('Drink Wine', style: TextStyle(color: Colors.green)),
               onTap: () {
                     Navigator.pop(context);
                 _showDrinkConfirmation(
@@ -749,8 +708,7 @@ void _showBottleOptionsMenu(
             );
 
             if (shouldLogout == true) {
-              final authProvider = context.read<AuthProvider>();
-              await authProvider.signOut();
+              await context.read<AuthProvider>().signOut();
               if (context.mounted) {
                 Navigator.of(context).pushNamedAndRemoveUntil(
                   '/signin',
@@ -762,16 +720,17 @@ void _showBottleOptionsMenu(
         }
       },
       itemBuilder: (BuildContext context) => [
-        const PopupMenuItem<String>(
-          value: 'browse',
-          child: Row(
-            children: [
-              Icon(Icons.people, size: 20),
-              SizedBox(width: 8),
-              Text('Browse Collections'),
-            ],
+        if (_isPro)
+          const PopupMenuItem<String>(
+            value: 'browse',
+            child: Row(
+              children: [
+                Icon(Icons.people, size: 20),
+                SizedBox(width: 8),
+                Text('Browse Collections'),
+              ],
+            ),
           ),
-        ),
         const PopupMenuItem<String>(
           value: 'share',
           child: Row(
