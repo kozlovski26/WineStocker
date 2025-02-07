@@ -211,14 +211,14 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SizedBox(
-        width: MediaQuery.of(context).size.width * 1.5,
+        width: MediaQuery.of(context).size.width * 1.28,
         child: GridView.builder(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          padding: const EdgeInsets.fromLTRB(1, 15, 3, 1),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            childAspectRatio: 0.58,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
+            crossAxisCount: 5,
+            childAspectRatio: 0.32,
+            crossAxisSpacing: 1,
+            mainAxisSpacing: 1,
           ),
           itemCount: _settings!.rows * _settings!.columns,
           itemBuilder: (context, index) {
@@ -226,15 +226,9 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
             final col = index % _settings!.columns;
             final bottle = _grid[row][col];
 
-            if (bottle.isEmpty) {
-              return WineBottleCard(
-                bottle: bottle,
-                animation: _animation,
-                onTap: () => _showWineDetails(bottle),
-              );
-            }
-
-            if (_selectedFilter != null && bottle.type != _selectedFilter) {
+            if (_selectedFilter != null && 
+                !bottle.isEmpty && 
+                bottle.type != _selectedFilter) {
               return const SizedBox.shrink();
             }
 

@@ -70,7 +70,7 @@ class WineGridScreenState extends State<WineGridScreen>
   @override
     Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
-      value: WineManager(WineRepository(widget.userId)),
+      value: _wineManager,
       child: Consumer<WineManager>(
         builder: (context, wineManager, child) {
           if (!wineManager.isInitialized) {
@@ -389,15 +389,15 @@ void _showBottleOptionsMenu(
                 );
               },
             ),
-            // if (wineManager.hasCopiedWine)
-              // ListTile(
-              //   leading: const Icon(Icons.paste),
-              //   title: const Text('Replace Wine'),
-              //   onTap: () async {
-              //     Navigator.pop(context);
-              //    await wineManager.pasteWine(row, col);
-              //   },
-              // ),
+            if (wineManager.hasCopiedWine)
+              ListTile(
+                leading: const Icon(Icons.paste),
+                title: const Text('Replace Wine'),
+                onTap: () async {
+                  Navigator.pop(context);
+                 await wineManager.pasteWine(row, col);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
               title: const Text('Delete Wine', style: TextStyle(color: Colors.red)),

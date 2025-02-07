@@ -208,55 +208,78 @@ class WineManager extends ChangeNotifier {
     }
   }
 
-  Future<void> pasteWine(int targetRow, int targetCol) async {
-    // Make sure target position is valid and we have a copied wine.
+  Future<void> pasteWine(int targetRow, int targetCol, {bool swap = true}) async {
     if (!_isValidPosition(targetRow, targetCol) || _copiedWine == null) return;
 
     try {
       _isLoading = true;
       notifyListeners();
 
-      // Create a new wine bottle from the copied wine's data
-      final newBottle = WineBottle(
-        name: _copiedWine!.name,
-        winery: _copiedWine!.winery,
-        year: _copiedWine!.year,
-        notes: _copiedWine!.notes,
-        type: _copiedWine!.type,
-        rating: _copiedWine!.rating,
-        price: _copiedWine!.price,
-        isFavorite: _copiedWine!.isFavorite,
-        isForTrade: _copiedWine!.isForTrade,
-        ownerId: _copiedWine!.ownerId,
-        dateAdded: DateTime.now(),
-        imagePath: _copiedWine!.imagePath
-      );
-
-      // Save the new wine to Firestore
-      final batch = repository.firestore.batch();
       final winesCollection = repository.firestore
           .collection('users')
           .doc(repository.userId)
           .collection('wines');
 
-      // Create new document for the pasted wine
-      final newDocRef = winesCollection.doc();
-      batch.set(newDocRef, {
-        ...newBottle.toJson(),
-        'position': {'row': targetRow, 'col': targetCol},
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      // Get the source and target documents
+      final sourceSnapshot = await winesCollection
+          .where('position.row', isEqualTo: _copiedWineRow)
+          .where('position.col', isEqualTo: _copiedWineCol)
+          .get();
+
+      final targetSnapshot = await winesCollection
+          .where('position.row', isEqualTo: targetRow)
+          .where('position.col', isEqualTo: targetCol)
+          .get();
+
+      final batch = repository.firestore.batch();
+
+      if (targetSnapshot.docs.isEmpty) {
+        // Target is empty - create a new copy
+        final newDocRef = winesCollection.doc();
+        batch.set(newDocRef, {
+          ..._copiedWine!.toJson(),
+          'position': {'row': targetRow, 'col': targetCol},
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        // Update local grid with the copy
+        _grid[targetRow][targetCol] = _copiedWine!;
+      } else if (swap && sourceSnapshot.docs.isNotEmpty) {
+        // Swap the wines
+        final sourceData = sourceSnapshot.docs.first.data();
+        final targetData = targetSnapshot.docs.first.data();
+
+        batch.update(sourceSnapshot.docs.first.reference, {
+          ...targetData,
+          'position': {'row': _copiedWineRow, 'col': _copiedWineCol},
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        batch.update(targetSnapshot.docs.first.reference, {
+          ...sourceData,
+          'position': {'row': targetRow, 'col': targetCol},
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        // Update local grid
+        final tempBottle = _grid[targetRow][targetCol];
+        _grid[targetRow][targetCol] = _grid[_copiedWineRow][_copiedWineCol];
+        _grid[_copiedWineRow][_copiedWineCol] = tempBottle;
+      }
 
       // Commit the changes
       await batch.commit();
-
-      // Update local grid
-      _grid[targetRow][targetCol] = newBottle;
+      
+      // Clear copied wine after successful operation
+      _copiedWine = null;
+      _copiedWineRow = -1;
+      _copiedWineCol = -1;
+      
       _updateStatistics();
 
     } catch (e) {
-      print('Error pasting wine: $e');
+      print('Error handling wine paste/swap: $e');
       rethrow;
     } finally {
       _isLoading = false;
