@@ -27,6 +27,9 @@ class WineManager extends ChangeNotifier {
   bool get isInitialized => _isInitialized;
   bool get isLoading => _isLoading;
   bool get hasCopiedWine => _copiedWine != null;
+  bool isDragMode = true; // default: drag enabled
+
+
   WineType? get selectedFilter => _selectedFilter;
   WineBottle? get copiedWine => _copiedWine;
 
@@ -45,7 +48,10 @@ class WineManager extends ChangeNotifier {
       ),
     );
   }
-
+  void toggleDragMode() {
+    isDragMode = !isDragMode;
+    notifyListeners();
+  }
   bool _isValidPosition(int row, int col) {
     return _grid.isNotEmpty &&
            row >= 0 &&
@@ -202,83 +208,88 @@ class WineManager extends ChangeNotifier {
     }
   }
 
-  Future<void> pasteWine(int row, int col) async {
-    if (!_isValidPosition(row, col) || _copiedWine == null) return;
+  Future<void> pasteWine(int targetRow, int targetCol) async {
+  // Make sure target position is valid and we have a copied wine.
+  if (!_isValidPosition(targetRow, targetCol) || _copiedWine == null) return;
 
-    try {
-      _isLoading = true;
-      notifyListeners();
+  final int srcRow = _copiedWineRow;
+  final int srcCol = _copiedWineCol;
 
-      final batch = repository.firestore.batch();
-      final winesCollection = repository.firestore
-          .collection('users')
-          .doc(repository.userId)
-          .collection('wines');
+  // If the user tries to paste into the same cell, simply do nothing.
+  if (srcRow == targetRow && srcCol == targetCol) return;
 
-      // Handle existing wine at target position
-      final existingSnapshot = await winesCollection
-          .where('position.row', isEqualTo: row)
-          .where('position.col', isEqualTo: col)
-          .get();
+  try {
+    _isLoading = true;
+    notifyListeners();
 
-      for (var doc in existingSnapshot.docs) {
-        final oldData = doc.data();
-        if (oldData['imagePath'] != null) {
-          await repository.deleteWineImage(oldData['imagePath']);
-        }
-        batch.delete(doc.reference);
+    // Get the current local bottles in source and target cells.
+    final WineBottle sourceBottle = _grid[srcRow][srcCol];
+    final WineBottle targetBottle = _grid[targetRow][targetCol];
+
+    // Prepare a Firestore batch for atomic update.
+    final batch = repository.firestore.batch();
+    final winesCollection = repository.firestore
+        .collection('users')
+        .doc(repository.userId)
+        .collection('wines');
+
+    // Try to get the Firestore document for the source cell.
+    final DocumentReference? sourceDoc = await repository.getWineDocument(srcRow, srcCol);
+    
+    // For the target cell there might be a document if it’s occupied.
+    final DocumentReference? targetDoc = await repository.getWineDocument(targetRow, targetCol);
+
+    if (targetBottle.isEmpty) {
+      // Case 1: Target is empty.
+      if (sourceDoc != null) {
+        batch.update(sourceDoc, {
+          'position': {'row': targetRow, 'col': targetCol},
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
       }
-
-      // Create new wine document
-      String? newImageUrl;
-      if (_copiedWine!.imagePath != null && _copiedWine!.imagePath!.startsWith('http')) {
-        print('Copying image from source: ${_copiedWine!.imagePath}');
-        newImageUrl = await repository.copyWineImage(_copiedWine!.imagePath!);
-        print('New image URL: $newImageUrl');
+      // Update the local grid: move source to target and clear source.
+      _grid[targetRow][targetCol] = sourceBottle;
+      _grid[srcRow][srcCol] = WineBottle();
+    } else {
+      // Case 2: Target is occupied. We want to swap.
+      if (sourceDoc == null || targetDoc == null) {
+        // If for some reason one of the documents cannot be found,
+        // abort the swap (or you could decide to create a new doc).
+        print('Could not retrieve both documents for swap.');
+        return;
       }
-
-      final newWine = WineBottle(
-        name: _copiedWine!.name,
-        winery: _copiedWine!.winery,
-        year: _copiedWine!.year,
-        notes: _copiedWine!.notes,
-        type: _copiedWine!.type,
-        rating: _copiedWine!.rating,
-        price: _copiedWine!.price,
-        isFavorite: _copiedWine!.isFavorite,
-        isForTrade: _copiedWine!.isForTrade,
-        ownerId: repository.userId,
-        dateAdded: DateTime.now(),
-        imagePath: newImageUrl ?? _copiedWine!.imagePath
-      );
-
-      // Create the new document
-      final newDocRef = winesCollection.doc();
-      batch.set(newDocRef, {
-        ...newWine.toJson(),
-        'position': {'row': row, 'col': col},
-        'createdAt': FieldValue.serverTimestamp(),
+      // Update the source document to get the target position.
+      batch.update(sourceDoc, {
+        'position': {'row': targetRow, 'col': targetCol},
         'updatedAt': FieldValue.serverTimestamp(),
       });
-
-      // Commit changes
-      await batch.commit();
-
-      // Update local state
-      _grid[row][col] = newWine;
-      _updateStatistics();
-
-      // Force a refresh of the grid data
-      await loadData();
-
-    } catch (e) {
-      print('Error pasting wine: $e');
-      rethrow;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      // And update the target document to take the source position.
+      batch.update(targetDoc, {
+        'position': {'row': srcRow, 'col': srcCol},
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      // Swap the two bottles in the local grid.
+      _grid[targetRow][targetCol] = sourceBottle;
+      _grid[srcRow][srcCol] = targetBottle;
     }
+
+    // Commit the Firestore updates.
+    await batch.commit();
+
+    // Optionally, refresh any statistics and reload grid data.
+    _updateStatistics();
+    await loadData();
+    clearCopiedWine(); // clear the copied state after the swap
+
+  } catch (e) {
+    print('Error swapping wines: $e');
+    rethrow;
+  } finally {
+    _isLoading = false;
+    notifyListeners();
   }
+}
+
 
   Future<void> updateWine(WineBottle bottle, int row, int col) async {
     if (!_isValidPosition(row, col)) return;

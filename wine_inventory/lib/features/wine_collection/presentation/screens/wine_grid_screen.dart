@@ -382,14 +382,14 @@ void _showBottleOptionsMenu(
               },
             ),
             if (wineManager.hasCopiedWine)
-              ListTile(
-                leading: const Icon(Icons.paste),
-                title: const Text('Replace Wine'),
-                onTap: () async {
-                  Navigator.pop(context);
-                 await wineManager.pasteWine(row, col);
-                },
-              ),
+              // ListTile(
+              //   leading: const Icon(Icons.paste),
+              //   title: const Text('Replace Wine'),
+              //   onTap: () async {
+              //     Navigator.pop(context);
+              //    await wineManager.pasteWine(row, col);
+              //   },
+              // ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
               title: const Text('Delete Wine', style: TextStyle(color: Colors.red)),

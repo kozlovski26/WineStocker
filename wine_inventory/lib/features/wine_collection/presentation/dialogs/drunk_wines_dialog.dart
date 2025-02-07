@@ -25,14 +25,20 @@ class DrunkWinesDialog extends StatelessWidget {
       initialChildSize: 0.9,
       minChildSize: 0.5,
       maxChildSize: 0.9,
-      builder: (context, scrollController) => Column(
-        children: [
-          _buildHeader(),
-          if (sortedDrunkWines.isEmpty)
-            _buildEmptyState()
-          else
-            _buildDrunkWinesList(sortedDrunkWines, scrollController),
-        ],
+      builder: (context, scrollController) => Container(
+        decoration: BoxDecoration(
+          color: Colors.grey[900],
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            _buildHeader(),
+            if (sortedDrunkWines.isEmpty)
+              _buildEmptyState()
+            else
+              _buildDrunkWinesList(sortedDrunkWines, scrollController),
+          ],
+        ),
       ),
     );
   }
@@ -40,13 +46,13 @@ class DrunkWinesDialog extends StatelessWidget {
   Widget _buildHeader() {
     return Column(
       children: [
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Container(
           width: 40,
           height: 4,
           decoration: BoxDecoration(
-            color: Colors.grey[800],
-            borderRadius: BorderRadius.circular(2),
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.circular(4),
           ),
         ),
         Padding(
@@ -56,22 +62,32 @@ class DrunkWinesDialog extends StatelessWidget {
             style: GoogleFonts.playfairDisplay(
               fontSize: 32,
               fontWeight: FontWeight.bold,
+              color: Colors.red[700],
             ),
           ),
         ),
+        Divider(color: Colors.grey[200], thickness: 1),
       ],
     );
   }
 
   Widget _buildEmptyState() {
-    return const Expanded(
+    return Expanded(
       child: Center(
-        child: Text(
-          'No drunk wines yet',
-          style: TextStyle(
-            color: Colors.grey,
-            fontSize: 16,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.wine_bar_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No drunk wines yet',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -82,23 +98,24 @@ class DrunkWinesDialog extends StatelessWidget {
     return Expanded(
       child: ListView.builder(
         controller: scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: sortedDrunkWines.length,
         itemBuilder: (context, index) {
           final wine = sortedDrunkWines[index];
           return Dismissible(
             key: ObjectKey(wine),
             background: Container(
-              margin: const EdgeInsets.only(bottom: 16),
+              margin: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.red[400],
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(16),
               ),
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 24),
               child: const Icon(
-                Icons.delete,
+                Icons.delete_outline,
                 color: Colors.white,
+                size: 28,
               ),
             ),
             direction: DismissDirection.endToStart,
@@ -112,36 +129,43 @@ class DrunkWinesDialog extends StatelessWidget {
 
   Widget _buildDrunkWineCard(WineBottle wine) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: SizedBox(
-          height: 120,
+          height: 180,
           child: Row(
             children: [
               SizedBox(
-                width: 100,
+                width: 120,
                 child: _buildWineImage(wine.imagePath),
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         wine.name ?? 'Unnamed Wine',
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       if (wine.year != null) ...[
                         Text(
                           wine.year!,
                           style: TextStyle(
-                            color: Colors.grey[400],
+                            color: Colors.grey[600],
+                            fontSize: 14,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -149,7 +173,8 @@ class DrunkWinesDialog extends StatelessWidget {
                       Text(
                         'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
                         style: TextStyle(
-                          color: Colors.grey[400],
+                          color: Colors.grey[600],
+                          fontSize: 14,
                         ),
                       ),
                       const Spacer(),
@@ -157,13 +182,13 @@ class DrunkWinesDialog extends StatelessWidget {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
+                              horizontal: 12,
+                              vertical: 6,
                             ),
                             decoration: BoxDecoration(
                               color: WineTypeHelper.getTypeColor(wine.type!)
-                                  .withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
+                                  .withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -173,12 +198,13 @@ class DrunkWinesDialog extends StatelessWidget {
                                   size: 16,
                                   color: WineTypeHelper.getTypeColor(wine.type!),
                                 ),
-                                const SizedBox(width: 4),
+                                const SizedBox(width: 6),
                                 Text(
                                   WineTypeHelper.getTypeName(wine.type!),
                                   style: TextStyle(
                                     color: WineTypeHelper.getTypeColor(wine.type!),
-                                    fontSize: 12,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
@@ -186,18 +212,32 @@ class DrunkWinesDialog extends StatelessWidget {
                           ),
                           const Spacer(),
                           if (wine.rating != null)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.star, color: Colors.amber[400], size: 16),
-                                const SizedBox(width: 4),
-                                Text(
-                                  wine.rating!.toString(),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.amber[50],
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.star_rounded, 
+                                    color: Colors.amber[600], 
+                                    size: 18
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    wine.rating!.toString(),
+                                    style: TextStyle(
+                                      color: Colors.amber[800],
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                         ],
                       ),
@@ -215,12 +255,12 @@ class DrunkWinesDialog extends StatelessWidget {
   Widget _buildWineImage(String? imagePath) {
     if (imagePath == null) {
       return Container(
-        color: Colors.grey[900],
-        child: const Center(
+        color: Colors.grey[100],
+        child: Center(
           child: Icon(
-            Icons.wine_bar,
-            color: Colors.white24,
-            size: 32,
+            Icons.wine_bar_rounded,
+            color: Colors.grey[400],
+            size: 40,
           ),
         ),
       );
@@ -231,9 +271,11 @@ class DrunkWinesDialog extends StatelessWidget {
         imageUrl: imagePath,
         fit: BoxFit.cover,
         placeholder: (context, url) => Container(
-          color: Colors.grey[900],
+          color: Colors.grey[100],
           child: const Center(
-            child: CircularProgressIndicator(),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+            ),
           ),
         ),
         errorWidget: (context, url, error) => _buildImageError(),
@@ -249,12 +291,12 @@ class DrunkWinesDialog extends StatelessWidget {
 
   Widget _buildImageError() {
     return Container(
-      color: Colors.grey[900],
-      child: const Center(
+      color: Colors.grey[100],
+      child: Center(
         child: Icon(
-          Icons.error_outline,
-          color: Colors.white24,
-          size: 32,
+          Icons.error_outline_rounded,
+          color: Colors.grey[400],
+          size: 40,
         ),
       ),
     );
@@ -268,11 +310,12 @@ class DrunkWinesDialog extends StatelessWidget {
         content: const Text('Wine removed from history'),
         backgroundColor: Colors.red[700],
         behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
         ),
         action: SnackBarAction(
-          label: 'Undo',
+          label: 'UNDO',
           textColor: Colors.white,
           onPressed: () async {
             wineManager.drunkWines.add(wine);
