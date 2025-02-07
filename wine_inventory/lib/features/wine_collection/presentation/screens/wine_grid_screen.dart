@@ -381,7 +381,7 @@ void _showBottleOptionsMenu(
                 );
               },
             ),
-            if (wineManager.hasCopiedWine)
+            // if (wineManager.hasCopiedWine)
               // ListTile(
               //   leading: const Icon(Icons.paste),
               //   title: const Text('Replace Wine'),
