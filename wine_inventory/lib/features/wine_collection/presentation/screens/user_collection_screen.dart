@@ -31,12 +31,29 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
   WineType? _selectedFilter;
   int _totalBottles = 0;
   double _totalCollectionValue = 0.0;
+  late AnimationController _animationController;
+  late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
     _repository = WineRepository(widget.userId);
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _animation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
     _loadUserCollection();
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserCollection() async {
@@ -83,40 +100,54 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
     });
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${widget.userName}\'s Collection',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            Text(
-              '$_totalBottles Bottles • \$${_totalCollectionValue.toStringAsFixed(2)}',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 14,
+        toolbarHeight: 70,
+        title: Padding(
+          padding: const EdgeInsets.only(left: 12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                
+                '${widget.userName}\'s wines',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                             fontSize: 20,
+                    ),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                '$_totalBottles Bottles • \$${_totalCollectionValue.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildFilterButtons(),
-                Expanded(child: _buildWineGrid()),
-              ],
-            ),
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: _buildFilterButtons(),
+                  ),
+                  Expanded(child: _buildWineGrid()),
+                ],
+              ),
+      ),
     );
   }
+
 
   Widget _buildFilterButtons() {
     return SingleChildScrollView(
@@ -173,47 +204,52 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
   }
 
   Widget _buildWineGrid() {
-    return _settings == null
-        ? const Center(child: CircularProgressIndicator())
-        : GridView.builder(
-            padding: const EdgeInsets.all(2),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: _settings!.columns,
-              childAspectRatio: 0.75,
-              crossAxisSpacing: 5,
-              mainAxisSpacing: 5,
-            ),
-            itemCount: _settings!.rows * _settings!.columns,
-            itemBuilder: (context, index) {
-              final row = index ~/ _settings!.columns;
-              final col = index % _settings!.columns;
-              final bottle = _grid[row][col];
+    if (_settings == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-              // If the bottle is empty, always show it
-              if (bottle.isEmpty) {
-                return WineBottleCard(
-                  bottle: bottle,
-                  animation: const AlwaysStoppedAnimation(1),
-                  onTap: () => _showWineDetails(bottle, row, col),
-                );
-              }
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width * 1.5,
+        child: GridView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            childAspectRatio: 0.58,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
+          itemCount: _settings!.rows * _settings!.columns,
+          itemBuilder: (context, index) {
+            final row = index ~/ _settings!.columns;
+            final col = index % _settings!.columns;
+            final bottle = _grid[row][col];
 
-              // If we have a filter and the bottle doesn't match, return empty space
-              if (_selectedFilter != null && bottle.type != _selectedFilter) {
-                return const SizedBox.shrink();
-              }
-
-              // Show the bottle if it matches the filter or there is no filter
+            if (bottle.isEmpty) {
               return WineBottleCard(
                 bottle: bottle,
-                animation: const AlwaysStoppedAnimation(1),
-                onTap: () => _showWineDetails(bottle, row, col),
+                animation: _animation,
+                onTap: () => _showWineDetails(bottle),
               );
-            },
-          );
+            }
+
+            if (_selectedFilter != null && bottle.type != _selectedFilter) {
+              return const SizedBox.shrink();
+            }
+
+            return WineBottleCard(
+              bottle: bottle,
+              animation: _animation,
+              onTap: () => _showWineDetails(bottle),
+            );
+          },
+        ),
+      ),
+    );
   }
 
-  void _showWineDetails(WineBottle bottle, int row, int col) {
+  void _showWineDetails(WineBottle bottle) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -290,7 +326,6 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
   }
 
   void _initiateTrade() {
-    // TODO: Implement trade request logic
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Trade request sent'),

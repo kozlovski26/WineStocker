@@ -2,6 +2,7 @@ import 'package:wine_inventory/core/models/wine_type.dart';
 
 class WineBottle {
   String? name;
+  String? winery;
   String? year;
   String? notes;
   DateTime? dateAdded;
@@ -17,6 +18,7 @@ class WineBottle {
 
   WineBottle({
     this.name,
+    this.winery,
     this.year,
     this.notes,
     this.dateAdded,
@@ -33,12 +35,45 @@ class WineBottle {
 
   bool get isEmpty => name == null && imagePath == null;
 
-  // In wine_bottle.dart
+ WineBottle copyWith({
+    String? name,
+    String? winery,
+    String? year,
+    String? notes,
+    DateTime? dateAdded,
+    DateTime? dateDrunk,
+    String? imagePath,
+    WineType? type,
+    double? rating,
+    double? price,
+    bool? isFavorite,
+    bool? isDrunk,
+    String? ownerId,
+    bool? isForTrade,
+  }) {
+    return WineBottle(
+      name: name ?? this.name,
+      winery: winery ?? this.winery,
+      year: year ?? this.year,
+      notes: notes ?? this.notes,
+      dateAdded: dateAdded ?? this.dateAdded,
+      dateDrunk: dateDrunk ?? this.dateDrunk,
+      imagePath: imagePath ?? this.imagePath,
+      type: type ?? this.type,
+      rating: rating ?? this.rating,
+      price: price ?? this.price,
+      isFavorite: isFavorite ?? this.isFavorite,
+      isDrunk: isDrunk ?? this.isDrunk,
+      ownerId: ownerId ?? this.ownerId,
+      isForTrade: isForTrade ?? this.isForTrade,
+    );
+  }
 
 factory WineBottle.fromJson(Map<String, dynamic> json) {
 
     return WineBottle(
       name: json['name'],
+      winery: json['winery'],
       year: json['year'],
       notes: json['notes'],
       dateAdded: json['dateAdded'] != null
@@ -62,6 +97,7 @@ factory WineBottle.fromJson(Map<String, dynamic> json) {
   Map<String, dynamic> toJson() {
     return {
       'name': name,
+      'winery': winery,
       'year': year,
       'notes': notes,
       'dateAdded': dateAdded?.toIso8601String(),

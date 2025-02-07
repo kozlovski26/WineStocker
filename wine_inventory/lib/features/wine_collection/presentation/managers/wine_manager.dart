@@ -1,16 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:wine_inventory/core/models/wine_type.dart';
-import 'package:wine_inventory/features/wine_collection/presentation/dialogs/first_time_setup_dialog.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../domain/models/wine_bottle.dart';
 import '../../domain/models/grid_settings.dart';
 import '../../data/repositories/wine_repository.dart';
+import 'package:wine_inventory/core/models/wine_type.dart';  // Fixed import path
+import '../dialogs/first_time_setup_dialog.dart';
 
 class WineManager extends ChangeNotifier {
   final WineRepository repository;
-  List<List<WineBottle>> _grid;  // Initialize in constructor
+  List<List<WineBottle>> _grid;
   List<WineBottle> drunkWines = [];
-  late GridSettings settings;  // Initialize in constructor
+  late GridSettings settings;
   WineType? _selectedFilter;
   int totalBottles = 0;
   double totalCollectionValue = 0.0;
@@ -20,19 +21,20 @@ class WineManager extends ChangeNotifier {
   WineBottle? _copiedWine;
   int _copiedWineRow = -1;
   int _copiedWineCol = -1;
-  WineManager(this.repository) : 
-    _grid = [],
-    settings = GridSettings.defaultSettings() {
-    loadData();
-  }
 
   // Getters
   List<List<WineBottle>> get grid => _grid;
-  bool get isInitialized => _isInitialized; 
+  bool get isInitialized => _isInitialized;
   bool get isLoading => _isLoading;
   bool get hasCopiedWine => _copiedWine != null;
   WineType? get selectedFilter => _selectedFilter;
   WineBottle? get copiedWine => _copiedWine;
+
+  WineManager(this.repository) :
+    _grid = [],
+    settings = GridSettings.defaultSettings() {
+    loadData();
+  }
 
   void _initializeGrid() {
     _grid = List.generate(
@@ -44,43 +46,26 @@ class WineManager extends ChangeNotifier {
     );
   }
 
-  Future<void> saveSettings(GridSettings newSettings) async {
-    if (_isLoading) return;
-    
-    try {
-      _isLoading = true;
-      notifyListeners();
-      
-      settings = newSettings;
-      await repository.saveGridSettings(settings);
-      await loadData();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+  bool _isValidPosition(int row, int col) {
+    return _grid.isNotEmpty &&
+           row >= 0 &&
+           col >= 0 &&
+           row < _grid.length &&
+           _grid[row].isNotEmpty &&
+           col < _grid[row].length;
   }
 
   Future<void> loadData() async {
     if (_isLoading) return;
-    
+
     try {
       _isLoading = true;
-      _isInitialized = false;  // Reset initialized state
+      _isInitialized = false;
       notifyListeners();
 
-      // Load settings first
       settings = await repository.loadGridSettings();
-      
-      // Initialize grid with current settings
-      _grid = List.generate(
-        settings.rows,
-        (i) => List.generate(
-          settings.columns,
-          (j) => WineBottle(),
-        ),
-      );
+      _initializeGrid();
 
-      // Load existing data
       final existingGrid = await repository.loadWineGrid(settings);
       if (existingGrid.isNotEmpty) {
         for (int i = 0; i < settings.rows && i < existingGrid.length; i++) {
@@ -94,34 +79,51 @@ class WineManager extends ChangeNotifier {
 
       drunkWines = await repository.loadDrunkWines();
       _updateStatistics();
+
     } catch (e) {
       print('Error loading data: $e');
-      _grid = List.generate(
-        settings.rows,
-        (i) => List.generate(
-          settings.columns,
-          (j) => WineBottle(),
-        ),
-      );
+      _initializeGrid();
     } finally {
       _isLoading = false;
-      _isInitialized = true;  // Mark as initialized
+      _isInitialized = true;
       notifyListeners();
     }
   }
 
-  bool _isValidPosition(int row, int col) {
-    return _grid.isNotEmpty && 
-           row >= 0 && 
-           col >= 0 && 
-           row < _grid.length && 
-           _grid[row].isNotEmpty &&
-           col < _grid[row].length;
+  Future<void> saveSettings(GridSettings newSettings) async {
+    if (_isLoading) return;
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      settings = newSettings;
+      await repository.saveGridSettings(settings);
+      await loadData();
+      
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-  void toggleView() {
-    isGridView = !isGridView;
-    notifyListeners();
+  Future<bool> showFirstTimeSetup(BuildContext context) async {
+    final isFirstTime = await repository.isFirstTimeSetup();
+    if (!isFirstTime) return false;
+
+    final newSettings = await showDialog<GridSettings>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const FirstTimeSetupDialog(),
+    );
+
+    if (newSettings != null) {
+      settings = newSettings;
+      await repository.saveGridSettings(settings);
+      await loadData();
+      return true;
+    }
+    return false;
   }
 
   void setFilter(WineType? type) {
@@ -129,172 +131,274 @@ class WineManager extends ChangeNotifier {
     _updateStatistics();
     notifyListeners();
   }
-Future<bool> showFirstTimeSetup(BuildContext context) async {
-  final isFirstTime = await repository.isFirstTimeSetup();
-  if (!isFirstTime) return false;
 
-  final newSettings = await showDialog<GridSettings>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => const FirstTimeSetupDialog(),
-  );
-
-  if (newSettings != null) {
-    settings = newSettings;
-    await repository.saveGridSettings(settings);
-    await loadData();
-    return true;
-  }
-  return false;
-}
-void _updateStatistics() {
-  if (_grid.isEmpty) {
-    totalBottles = 0;
-    totalCollectionValue = 0;
-    return;
+  void toggleView() {
+    isGridView = !isGridView;
+    notifyListeners();
   }
 
-  int bottles = 0;
-  double total = 0;
-  
-  for (var row in _grid) {
-    for (var bottle in row) {
-      if (!bottle.isEmpty && 
-          (_selectedFilter == null || bottle.type == _selectedFilter)) {
-        bottles++;
-        if (bottle.price != null) {
-          total += bottle.price!;
+  void _updateStatistics() {
+    if (_grid.isEmpty) {
+      totalBottles = 0;
+      totalCollectionValue = 0;
+      return;
+    }
+
+    int bottles = 0;
+    double total = 0;
+
+    for (var row in _grid) {
+      for (var bottle in row) {
+        if (!bottle.isEmpty &&
+            (_selectedFilter == null || bottle.type == _selectedFilter)) {
+          bottles++;
+          if (bottle.price != null) {
+            total += bottle.price!;
+          }
         }
       }
     }
-  }
 
-  totalBottles = bottles;
-  totalCollectionValue = total;
-  notifyListeners();
-}
-
-Future<void> copyWine(WineBottle bottle, int row, int col) async {
-  try {
-    _isLoading = true;
-    notifyListeners();
-
-    // Store copied wine and its original position
-    _copiedWine = WineBottle(
-      name: bottle.name,
-      year: bottle.year,
-      notes: bottle.notes,
-      type: bottle.type,
-      rating: bottle.rating,
-      isFavorite: bottle.isFavorite,
-      imagePath: bottle.imagePath,
-    );
-    _copiedWineRow = row;
-    _copiedWineCol = col;
-
-  } finally {
-    _isLoading = false;
+    totalBottles = bottles;
+    totalCollectionValue = total;
     notifyListeners();
   }
-}
 
-  Future<void> updateWine(WineBottle bottle, int row, int col) async {
-    if (!_isValidPosition(row, col)) return;
-    
-    _grid[row][col] = bottle;
-    await saveData();
-  }
-
-  Future<void> saveData() async {
-  if (_isLoading) return;
-  
-  try {
-    _isLoading = true;
-    notifyListeners();
-    
-    // Remove any drunk wines from the grid
-    for (int i = 0; i < _grid.length; i++) {
-      for (int j = 0; j < _grid[i].length; j++) {
-        if (_grid[i][j].isDrunk) {
-          _grid[i][j] = WineBottle();
-        }
-      }
-    }
-    
-    // Save wine grid
-    await repository.saveWineGrid(_grid);
-    
-    // Save drunk wines
-    await repository.saveDrunkWines(drunkWines);
-    
-    // Update statistics
-    _updateStatistics();
-  } catch (e) {
-    print('Error in saveData: $e');
-    rethrow;
-  } finally {
-    _isLoading = false;
-    notifyListeners();
-  }
-}
-
-Future<void> markAsDrunk(WineBottle bottle, int row, int col) async {
-  if (!_isValidPosition(row, col)) return;
-
-  try {
-    _isLoading = true;
-    notifyListeners();
-    
-    // Create a copy of the bottle to be marked as drunk
-    final drunkBottle = WineBottle(
-      name: bottle.name,
-      year: bottle.year,
-      notes: bottle.notes,
-      type: bottle.type,
-      imagePath: bottle.imagePath,
-      rating: bottle.rating,
-      price: bottle.price,
-      dateAdded: bottle.dateAdded,
-      // Set drunk-specific properties
-      isDrunk: true,
-      dateDrunk: DateTime.now(),
-      isFavorite: bottle.isFavorite,
-      isForTrade: bottle.isForTrade,
-      ownerId: bottle.ownerId
-    );
-
-    // Add to drunk wines list
-    drunkWines.add(drunkBottle);
-
-    // Remove from grid
-    _grid[row][col] = WineBottle();
-
-    // Save changes to Firestore
-    await saveData();
-
-  } catch (e) {
-    print('Error marking wine as drunk: $e');
-    rethrow;
-  } finally {
-    _isLoading = false;
-    notifyListeners();
-  }
-}
-  Future<void> removeDrunkWine(WineBottle wine) async {
+  Future<void> copyWine(WineBottle bottle, int row, int col) async {
     try {
       _isLoading = true;
       notifyListeners();
       
-      drunkWines.remove(wine);
-      await repository.removeDrunkWine(wine);
-      await saveData();
+      // Create initial copy
+      _copiedWine = WineBottle(
+        name: bottle.name,
+        winery: bottle.winery,
+        year: bottle.year,
+        notes: bottle.notes,
+        type: bottle.type,
+        rating: bottle.rating,
+        price: bottle.price,
+        isFavorite: bottle.isFavorite,
+        isForTrade: bottle.isForTrade,
+        ownerId: bottle.ownerId,
+        dateAdded: DateTime.now(),
+        imagePath: bottle.imagePath  // Store the original image path
+      );
+
+      _copiedWineRow = row;
+      _copiedWineCol = col;
+      
+      print('Wine copy completed successfully with image: ${_copiedWine?.imagePath}');
+
+    } catch (e) {
+      print('Error copying wine: $e');
+      _copiedWine = null;
+      _copiedWineRow = -1;
+      _copiedWineCol = -1;
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-   Future<void> deleteWine(int row, int col) async {
+  Future<void> pasteWine(int row, int col) async {
+    if (!_isValidPosition(row, col) || _copiedWine == null) return;
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final batch = repository.firestore.batch();
+      final winesCollection = repository.firestore
+          .collection('users')
+          .doc(repository.userId)
+          .collection('wines');
+
+      // Handle existing wine at target position
+      final existingSnapshot = await winesCollection
+          .where('position.row', isEqualTo: row)
+          .where('position.col', isEqualTo: col)
+          .get();
+
+      for (var doc in existingSnapshot.docs) {
+        final oldData = doc.data();
+        if (oldData['imagePath'] != null) {
+          await repository.deleteWineImage(oldData['imagePath']);
+        }
+        batch.delete(doc.reference);
+      }
+
+      // Create new wine document
+      String? newImageUrl;
+      if (_copiedWine!.imagePath != null && _copiedWine!.imagePath!.startsWith('http')) {
+        print('Copying image from source: ${_copiedWine!.imagePath}');
+        newImageUrl = await repository.copyWineImage(_copiedWine!.imagePath!);
+        print('New image URL: $newImageUrl');
+      }
+
+      final newWine = WineBottle(
+        name: _copiedWine!.name,
+        winery: _copiedWine!.winery,
+        year: _copiedWine!.year,
+        notes: _copiedWine!.notes,
+        type: _copiedWine!.type,
+        rating: _copiedWine!.rating,
+        price: _copiedWine!.price,
+        isFavorite: _copiedWine!.isFavorite,
+        isForTrade: _copiedWine!.isForTrade,
+        ownerId: repository.userId,
+        dateAdded: DateTime.now(),
+        imagePath: newImageUrl ?? _copiedWine!.imagePath
+      );
+
+      // Create the new document
+      final newDocRef = winesCollection.doc();
+      batch.set(newDocRef, {
+        ...newWine.toJson(),
+        'position': {'row': row, 'col': col},
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Commit changes
+      await batch.commit();
+
+      // Update local state
+      _grid[row][col] = newWine;
+      _updateStatistics();
+
+      // Force a refresh of the grid data
+      await loadData();
+
+    } catch (e) {
+      print('Error pasting wine: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateWine(WineBottle bottle, int row, int col) async {
+    if (!_isValidPosition(row, col)) return;
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final batch = repository.firestore.batch();
+      final winesCollection = repository.firestore
+          .collection('users')
+          .doc(repository.userId)
+          .collection('wines');
+
+      // First, find and delete any existing wines at this position
+      final existingSnapshot = await winesCollection
+          .where('position.row', isEqualTo: row)
+          .where('position.col', isEqualTo: col)
+          .get();
+
+      for (var doc in existingSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      // Create new document
+      final newDocRef = winesCollection.doc();
+      batch.set(newDocRef, {
+        ...bottle.toJson(),
+        'position': {'row': row, 'col': col},
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Commit all changes
+      await batch.commit();
+
+      // Update local state
+      _grid[row][col] = bottle;
+      _updateStatistics();
+      notifyListeners(); // Notify listeners after updating local state
+
+    } catch (e) {
+      print('Error updating wine: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> markAsDrunk(WineBottle bottle, int row, int col) async {
+    if (!_isValidPosition(row, col)) return;
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final batch = repository.firestore.batch();
+
+      // Create drunk wine document
+      final drunkWineRef = repository.firestore
+          .collection('users')
+          .doc(repository.userId)
+          .collection('drunk_wines')
+          .doc();
+
+      final drunkBottle = WineBottle(
+        name: bottle.name,
+        winery: bottle.winery,
+        year: bottle.year,
+        notes: bottle.notes,
+        type: bottle.type,
+        imagePath: bottle.imagePath,
+        rating: bottle.rating,
+        price: bottle.price,
+        dateAdded: bottle.dateAdded,
+        isDrunk: true,
+        dateDrunk: DateTime.now(),
+        isFavorite: bottle.isFavorite,
+        isForTrade: false,
+        ownerId: bottle.ownerId
+      );
+
+      batch.set(drunkWineRef, {
+        ...drunkBottle.toJson(),
+        'drunkAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Delete from main collection
+      final snapshot = await repository.firestore
+          .collection('users')
+          .doc(repository.userId)
+          .collection('wines')
+          .where('position.row', isEqualTo: row)
+          .where('position.col', isEqualTo: col)
+          .get();
+
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      // Commit all changes
+      await batch.commit();
+
+      // Update local state
+      drunkWines.add(drunkBottle);
+      _grid[row][col] = WineBottle();
+      _updateStatistics();
+
+    } catch (e) {
+      print('Error marking wine as drunk: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteWine(int row, int col) async {
     if (!_isValidPosition(row, col)) return;
 
     try {
@@ -314,7 +418,6 @@ Future<void> markAsDrunk(WineBottle bottle, int row, int col) async {
       // Clear the grid position
       _grid[row][col] = WineBottle();
       _updateStatistics();
-      notifyListeners();
 
     } catch (e) {
       print('Error deleting wine: $e');
@@ -325,83 +428,53 @@ Future<void> markAsDrunk(WineBottle bottle, int row, int col) async {
     }
   }
 
-  Future<void> updateBottleWithImage(WineBottle bottle, int row, int col, String localPath) async {
-    if (!_isValidPosition(row, col)) return;
-
+  Future<void> removeDrunkWine(WineBottle wine) async {
     try {
       _isLoading = true;
       notifyListeners();
-
-      if (bottle.imagePath != null && bottle.imagePath!.startsWith('http')) {
-        await repository.deleteWineImage(bottle.imagePath!);
-      }
-
-      final imageUrl = await repository.uploadWineImage(localPath);
-      if (imageUrl != null) {
-        bottle.imagePath = imageUrl;
-        await updateWine(bottle, row, col);
-      }
+      
+      drunkWines.remove(wine);
+      await repository.removeDrunkWine(wine);
+      await saveData();
+      
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
- Future<void> pasteWine(int row, int col) async {
-  if (!_isValidPosition(row, col) || _copiedWine == null) return;
-
-  try {
-    _isLoading = true;
-    notifyListeners();
-
-    final targetWine = _grid[row][col];
-
-    if (!targetWine.isEmpty) {
-      // Swap in UI
-      _grid[row][col] = _copiedWine!;
-      _grid[_copiedWineRow][_copiedWineCol] = targetWine;
-
-      // Swap in Firestore
-      final batch = repository.firestore.batch();
-
-      final copiedWineDoc = await repository.getWineDocument(_copiedWineRow, _copiedWineCol);
-      final targetWineDoc = await repository.getWineDocument(row, col);
-
-      if (copiedWineDoc != null && targetWineDoc != null) {
-        batch.update(copiedWineDoc, {
-          'position': {'row': row, 'col': col},
-        });
-
-        batch.update(targetWineDoc, {
-          'position': {'row': _copiedWineRow, 'col': _copiedWineCol},
-        });
-
-        await batch.commit();
+  Future<void> saveData() async {
+    if (_isLoading) return;
+    
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      // Remove any drunk wines from the grid
+      for (int i = 0; i < _grid.length; i++) {
+        for (int j = 0; j < _grid[i].length; j++) {
+          if (_grid[i][j].isDrunk) {
+            _grid[i][j] = WineBottle();
+          }
+        }
       }
-    } else {
-      // Paste normally (update Firestore)
-      _grid[row][col] = _copiedWine!;
-      await repository.updateWinePosition(_copiedWine!, row, col);
+      
+      // Save wine grid and drunk wines
+      await Future.wait([
+        repository.saveWineGrid(_grid),
+        repository.saveDrunkWines(drunkWines)
+      ]);
+      
+      _updateStatistics();
+      
+    } catch (e) {
+      print('Error in saveData: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-
-    // Save grid changes
-    await saveData();
-
-    // Clear copied wine state
-    _copiedWine = null;
-    _copiedWineRow = -1;
-    _copiedWineCol = -1;
-
-  } catch (e) {
-    print('Error pasting wine: $e');
-    rethrow;
-  } finally {
-    _isLoading = false;
-    notifyListeners();
   }
-}
-
-
 
   List<WineBottle> getVisibleBottles() {
     if (_grid.isEmpty) return [];
@@ -412,47 +485,18 @@ Future<void> markAsDrunk(WineBottle bottle, int row, int col) async {
         .toList();
   }
 
+  Future<void> clearCopiedWine() async {
+    _copiedWine = null;
+    _copiedWineRow = -1;
+    _copiedWineCol = -1;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _grid.clear();
     drunkWines.clear();
     _copiedWine = null;
     super.dispose();
-  }
-}
-
-extension WineManagerReorder on WineManager {
-  Future<void> reorderWines(int fromRow, int fromCol, int toRow, int toCol) async {
-    if (!_isValidPosition(fromRow, fromCol) || !_isValidPosition(toRow, toCol)) {
-      return;
-    }
-
-    try {
-      _isLoading = true;
-      notifyListeners();
-
-      // Store the wines
-      final sourceWine = _grid[fromRow][fromCol];
-      final targetWine = _grid[toRow][toCol];
-
-      // Swap the wines
-      _grid[fromRow][fromCol] = targetWine;
-      _grid[toRow][toCol] = sourceWine;
-
-      // Save changes to Firestore
-      await saveData();
-      
-    } catch (e) {
-      print('Error reordering wines: $e');
-      // Revert changes if save fails
-      final sourceWine = _grid[toRow][toCol];
-      final targetWine = _grid[fromRow][fromCol];
-      _grid[toRow][toCol] = targetWine;
-      _grid[fromRow][fromCol] = sourceWine;
-      rethrow;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
   }
 }

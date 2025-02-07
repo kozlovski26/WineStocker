@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../domain/models/wine_bottle.dart';
 import '../../utils/wine_type_helper.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 class WineBottleCard extends StatelessWidget {
   final WineBottle bottle;
@@ -20,20 +20,24 @@ class WineBottleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Wrap the card in an AspectRatio to maintain consistent dimensions.
     return FadeTransition(
       opacity: animation,
-      child: Card(
-        margin: const EdgeInsets.all(4),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          child: bottle.isEmpty
-              ? _buildEmptyBottle()
-              : _buildBottleContent(context),
+      child: AspectRatio(
+        aspectRatio: 0.7, // Adjust card proportions as needed.
+        child: Card(
+          margin: const EdgeInsets.all(2), // Slightly reduced overall margin.
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            child: bottle.isEmpty
+                ? _buildEmptyBottle()
+                : _buildBottleContent(context),
+          ),
         ),
       ),
     );
@@ -59,38 +63,146 @@ class WineBottleCard extends StatelessWidget {
   }
 
   Widget _buildBottleContent(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildBottleImage(),
-        _buildBottleOverlay(),
-        _buildBottleInfo(context),
-        // if (bottle.type != null) _buildTypeIndicator(),
-        // if (bottle.isFavorite) _buildFavoriteIndicator(),
-        if (bottle.isForTrade)
-  Positioned(
-    top: 8,
-    right: 8,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Icon(
-        Icons.swap_horiz,
-        color: Colors.green,
-        size: 16,
-      ),
-    ),
-  ),
+        // Image Container (70% of the card's height)
+        Expanded(
+          flex: 7,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildBottleImage(),
+              if (bottle.isForTrade)
+                Positioned(
+                  top: 4, // Reduced top offset.
+                  right: 4, // Reduced right offset.
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.swap_horiz,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 2), // Reduced spacing.
+                        Text(
+                          'TRADE',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        // Wine Information Section (30% of the card's height)
+        Expanded(
+          flex: 3,
+          // Adjusted padding: less at the top, a bit more between wine name and year, and less at bottom.
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 2),
+            decoration: BoxDecoration(
+              color: Colors.grey[900],
+              border: Border(
+                top: BorderSide(
+                  color: Colors.grey[800]!,
+                  width: 1,
+                ),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              // Center the contents vertically.
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Winery Row: placed with minimal top spacing.
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (bottle.type != null)
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: WineTypeHelper.getTypeColor(bottle.type!),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    if (bottle.winery != null) ...[
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          bottle.winery!,
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 10,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                // Small gap between winery and wine name.
+                const SizedBox(height: 2),
+                // Adaptive wine name widget.
+                AdaptiveWineName(
+                  name: bottle.name ?? 'Unnamed Wine',
+                  baseStyle: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 11,
+                  ),
+                  containerHeight: 30,
+                ),
+                // Increased gap between wine name and year.
+                const SizedBox(height: 4),
+                // Wine Year with less space below.
+                if (bottle.year != null)
+                  Text(
+                    bottle.year!,
+                    style: TextStyle(
+                      color: Colors.red[300],
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildBottleImage() {
     if (bottle.imagePath == null) {
-      return Container(color: Colors.grey[900]);
+      return Container(
+        color: Colors.grey[900],
+        child: const Center(
+          child: Icon(
+            Icons.wine_bar,
+            color: Colors.white24,
+            size: 32,
+          ),
+        ),
+      );
     }
 
     if (bottle.imagePath!.startsWith('http')) {
@@ -122,154 +234,56 @@ class WineBottleCard extends StatelessWidget {
     return Container(
       color: Colors.grey[900],
       child: const Center(
-        child: Icon(Icons.error_outline, color: Colors.white54, size: 32),
-      ),
-    );
-  }
-
-  Widget _buildBottleOverlay() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withOpacity(0.2),
-            Colors.black.withOpacity(0.8),
-          ],
-          stops: const [0.5, 0.9],
+        child: Icon(
+          Icons.error_outline,
+          color: Colors.white54,
+          size: 32,
         ),
       ),
     );
   }
+}
 
-  Widget _buildTypeIndicator() {
-    return Positioned(
-      top: 8,
-      left: 8,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: WineTypeHelper.getTypeColor(bottle.type!).withOpacity(0.9),
-          borderRadius: BorderRadius.circular(12),
+class AdaptiveWineName extends StatelessWidget {
+  final String name;
+  final TextStyle baseStyle;
+  /// Container height should be tall enough for two lines.
+  final double containerHeight;
+
+  const AdaptiveWineName({
+    Key? key,
+    required this.name,
+    required this.baseStyle,
+    this.containerHeight = 60,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    // Force a newline at the first space if present.
+    final bool hasSpace = name.contains(' ');
+    final String adjustedName = hasSpace ? name.replaceFirst(' ', '\n') : name;
+    
+    // Use a larger font for single-word names.
+    TextStyle effectiveStyle = hasSpace
+        ? baseStyle
+        : baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 11) + 3);
+    
+    // Minimize the line spacing.
+    effectiveStyle = effectiveStyle.copyWith(height: 1.0);
+
+    return SizedBox(
+      height: containerHeight,
+      width: double.infinity,
+      child: Center(
+        child: Text(
+          adjustedName,
+          style: effectiveStyle,
+          softWrap: true,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.rtl, // RTL for Hebrew.
         ),
-        child: ConstrainedBox(
-          // Added ConstrainedBox
-          constraints:
-              const BoxConstraints(maxWidth: 120), // Limit maximum width
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                WineTypeHelper.getTypeIcon(bottle.type!),
-                color: Colors.white,
-                size: 14,
-              ),
-              const SizedBox(width: 4),
-              // Flexible(
-              //   // Added Flexible
-              //   child: Text(
-              //     WineTypeHelper.getTypeName(bottle.type!),
-              //     style: const TextStyle(
-              //       color: Colors.white,
-              //       fontSize: 12,
-              //       fontWeight: FontWeight.bold,
-              //     ),
-              //     overflow: TextOverflow.ellipsis,
-              //   ),
-              // ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFavoriteIndicator() {
-    return const Positioned(
-      top: 8,
-      right: 8,
-      child: Icon(
-        Icons.favorite,
-        color: Colors.red,
-        size: 20,
-      ),
-    );
-  }
-
-  // In WineBottleCard class, update _buildBottleInfo:
-
-  Widget _buildBottleInfo(BuildContext context) {
-    return Positioned(
-      left: 8,
-      right: 8,
-      bottom: 8,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (bottle.name != null)
-            Text(
-              bottle.name!,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min, // Changed to min
-            children: [
-              if (bottle.year != null)
-                Flexible(
-                  // Added Flexible
-                  child: Text(
-                    bottle.year!,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              if (bottle.year != null && bottle.rating != null)
-                const SizedBox(width: 8),
-              if (bottle.rating != null)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.star,
-                      color: Colors.amber[400],
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      bottle.rating!.toStringAsFixed(1),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              // if (bottle.price != null) ...[
-              //   const SizedBox(height: 4),
-              //   Text(
-              //     '\$${bottle.price!.toStringAsFixed(2)}',
-              //     style: TextStyle(
-              //       color: Colors.green[400],
-              //       fontSize: 14,
-              //       fontWeight: FontWeight.bold,
-              //     ),
-              //   ),
-              // ],
-            ],
-          ),
-        ],
       ),
     );
   }

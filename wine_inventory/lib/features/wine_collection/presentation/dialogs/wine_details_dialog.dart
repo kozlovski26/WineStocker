@@ -6,7 +6,7 @@ import 'package:wine_inventory/features/wine_collection/presentation/dialogs/win
 import '../../domain/models/wine_bottle.dart';
 import '../../utils/wine_type_helper.dart';
 import '../managers/wine_manager.dart';
-
+import 'package:intl/intl.dart';
 class WineDetailsDialog extends StatefulWidget {
   final WineBottle bottle;
   final WineManager wineManager;
@@ -28,22 +28,23 @@ class WineDetailsDialog extends StatefulWidget {
 class _WineDetailsDialogState extends State<WineDetailsDialog> {
   late WineBottle _bottle;
 
-  @override
-  void initState() {
-    super.initState();
-    _bottle = WineBottle(
-      name: widget.bottle.name,
-      year: widget.bottle.year,
-      notes: widget.bottle.notes,
-      dateAdded: widget.bottle.dateAdded,
-      dateDrunk: widget.bottle.dateDrunk,
-      imagePath: widget.bottle.imagePath,
-      type: widget.bottle.type,
-      rating: widget.bottle.rating,
-      isFavorite: widget.bottle.isFavorite,
-      isDrunk: widget.bottle.isDrunk,
-    );
-  }
+@override
+void initState() {
+  super.initState();
+  _bottle = WineBottle(
+    name: widget.bottle.name,
+    winery: widget.bottle.winery,  // Add this line
+    year: widget.bottle.year,
+    notes: widget.bottle.notes,
+    dateAdded: widget.bottle.dateAdded,
+    dateDrunk: widget.bottle.dateDrunk,
+    imagePath: widget.bottle.imagePath,
+    type: widget.bottle.type,
+    rating: widget.bottle.rating,
+    isFavorite: widget.bottle.isFavorite,
+    isDrunk: widget.bottle.isDrunk,
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -185,32 +186,193 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
       ),
     );
   }
+Widget _buildWineInfo() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // Name
+      Text(
+        _bottle.name ?? '',
+        style: GoogleFonts.playfairDisplay(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
 
-  Widget _buildWineInfo() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+      // Winery with icon
+      if (_bottle.winery != null && _bottle.winery!.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Icon(
+              Icons.location_on,
+              size: 18,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _bottle.winery!,
+                style: TextStyle(
+                  color: Colors.grey[400],
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+
+      // Divider
+      const SizedBox(height: 16),
+      Divider(color: Colors.grey[800]),
+      const SizedBox(height: 16),
+
+      // Info Grid
+      Row(
+        children: [
+          // Year Column
+          if (_bottle.year != null)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'YEAR',
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _bottle.year!,
+                    style: TextStyle(
+                      color: Colors.red[300],
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Price Column
+          if (_bottle.price != null)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'PRICE',
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${_bottle.price!.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      color: Colors.green[300],
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Rating Column if available
+          if (_bottle.rating != null)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'RATING',
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        _bottle.rating!.toStringAsFixed(1),
+                        style: TextStyle(
+                          color: Colors.amber[300],
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.star,
+                        size: 18,
+                        color: Colors.amber[300],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+
+      // Date Added
+      if (_bottle.dateAdded != null) ...[
+        const SizedBox(height: 24),
         Text(
-          _bottle.name ?? '',
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
+          'Added: ${DateFormat('MMMM d, y').format(_bottle.dateAdded!)}',
+          style: TextStyle(
+            color: Colors.grey[500],
+            fontSize: 14,
           ),
         ),
-        if (_bottle.year != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            _bottle.year!,
-            style: TextStyle(
-              color: Colors.red[300],
-              fontSize: 20,
-              fontWeight: FontWeight.w500,
+      ],
+
+      // Trade Status
+      if (_bottle.isForTrade) ...[
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Colors.green.withOpacity(0.3),
             ),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.swap_horiz,
+                size: 16,
+                color: Colors.green[400],
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Available for Trade',
+                style: TextStyle(
+                  color: Colors.green[400],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
-    );
-  }
+    ],
+  );
+}
 
   Widget _buildRatingAndFavorite(BuildContext context) {
     return Row(
@@ -270,14 +432,16 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
       ],
     );
   }
-
-  Widget _buildEditButton(BuildContext context) {
+Widget _buildEditButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        onPressed: () {
+        onPressed: () async {
+          // Close details dialog
           Navigator.pop(context);
-          showModalBottomSheet(
+          
+          // Show edit dialog and await result
+          final updatedBottle = await showModalBottomSheet<WineBottle>(
             context: context,
             isScrollControlled: true,
             backgroundColor: Colors.black,
@@ -292,6 +456,15 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
               isEdit: true,
             ),
           );
+
+          // If we got an updated bottle back, update our local state
+          if (updatedBottle != null && mounted) {
+            setState(() {
+              _bottle = updatedBottle;
+            });
+            // Force the grid to refresh
+            widget.wineManager.loadData();
+          }
         },
         icon: const Icon(Icons.edit),
         label: const Text('Edit Wine'),
@@ -302,7 +475,6 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
       ),
     );
   }
-
   Future<void> _updateRating(int rating) async {
     setState(() {
       if (_bottle.rating == rating) {

@@ -35,37 +35,35 @@ class WineEditDialogState extends State<WineEditDialog> {
   late TextEditingController nameController;
   late TextEditingController notesController;
   late TextEditingController priceController;
+  late TextEditingController wineryController; 
+
   late String? selectedYear;
   late WineType? selectedType;
   late bool hasPhoto;
   bool _isLoading = false;
   bool isForTrade = false;
 
-  @override
-  void initState() {
-    super.initState();
-    print(
-        'Initial bottle isForTrade value: ${widget.bottle.isForTrade}'); // Debug log
-
-    nameController = TextEditingController(text: widget.bottle.name);
-    notesController = TextEditingController(text: widget.bottle.notes);
-    priceController = TextEditingController(
-      text: widget.bottle.price?.toStringAsFixed(2) ?? '',
-    );
-    selectedYear = widget.bottle.year;
-    selectedType = widget.bottle.type;
-    hasPhoto = widget.bottle.imagePath != null;
-
-    // Explicitly set isForTrade from the bottle
-    isForTrade = widget.bottle.isForTrade;
-
-    print('Initialized isForTrade to: $isForTrade'); // Debug log
-  }
+@override
+void initState() {
+  super.initState();
+  print('Initial winery value: ${widget.bottle.winery}'); 
+  nameController = TextEditingController(text: widget.bottle.name);
+  wineryController = TextEditingController(text: widget.bottle.winery);
+  notesController = TextEditingController(text: widget.bottle.notes);
+  priceController = TextEditingController(
+    text: widget.bottle.price?.toStringAsFixed(2) ?? '',
+  );
+  selectedYear = widget.bottle.year;
+  selectedType = widget.bottle.type;
+  hasPhoto = widget.bottle.imagePath != null;
+  isForTrade = widget.bottle.isForTrade;
+}
 
   @override
   void dispose() {
     nameController.dispose();
     notesController.dispose();
+    wineryController.dispose(); 
     priceController.dispose();
     super.dispose();
   }
@@ -86,6 +84,8 @@ class WineEditDialogState extends State<WineEditDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildHeader(context),
+                  const SizedBox(height: 24),
+                  _buildWineryField(), 
                   const SizedBox(height: 24),
                   _buildNameField(),
                   const SizedBox(height: 24),
@@ -144,6 +144,25 @@ class WineEditDialogState extends State<WineEditDialog> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: 'Wine Name',
+        labelStyle: const TextStyle(color: Colors.white70),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white24),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red[400]!),
+        ),
+      ),
+    );
+  }
+
+Widget _buildWineryField() {
+    return TextField(
+      controller: wineryController,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: 'Winery',
         labelStyle: const TextStyle(color: Colors.white70),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -394,55 +413,79 @@ class WineEditDialogState extends State<WineEditDialog> {
     return widget.bottle.imagePath;
   }
 
-  Future<void> _saveWine() async {
-  try {
-    setState(() => _isLoading = true);
-    final imageUrl = await _uploadImageIfNeeded();
-    // Parse price
-    double? price;
-    if (priceController.text.isNotEmpty) {
-      price = double.tryParse(priceController.text.replaceAll('\$', '').trim());
-      if (price == null) {
-        throw Exception('Invalid price format');
+ Future<void> _saveWine() async {
+    try {
+      setState(() => _isLoading = true);
+      
+      // Parse price
+      double? price;
+      if (priceController.text.isNotEmpty) {
+        price = double.tryParse(priceController.text.replaceAll('\$', '').trim());
+        if (price == null) {
+          throw Exception('Invalid price format');
+        }
+      }
+
+      final userId = context.read<AuthProvider>().user?.id;
+
+      // Create updated bottle with all the new values
+      final updatedBottle = WineBottle(
+        name: nameController.text,
+        winery: wineryController.text,
+        year: selectedYear,
+        notes: notesController.text,
+        imagePath: widget.bottle.imagePath,
+        type: selectedType,
+        rating: widget.bottle.rating,
+        price: price,
+        isFavorite: widget.bottle.isFavorite,
+        isForTrade: isForTrade,
+        ownerId: userId,
+        dateAdded: widget.isEdit ? widget.bottle.dateAdded : DateTime.now(),
+      );
+
+      // Update the wine in the manager
+      await widget.wineManager.updateWine(updatedBottle, widget.row, widget.col);
+      
+      // Force an immediate refresh of the grid data
+      await widget.wineManager.loadData();
+      
+      if (mounted) {
+        Navigator.pop(context, updatedBottle);
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Wine updated successfully'),
+            backgroundColor: Colors.green[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save wine: ${e.toString()}'),
+            backgroundColor: Colors.red[400],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
-
-    final userId = context.read<AuthProvider>().user?.id;
-    
-    print('Saving wine with isForTrade: $isForTrade'); // Debug log
-    
-    widget.bottle.name = nameController.text;
-    widget.bottle.year = selectedYear;
-    widget.bottle.type = selectedType;
-    widget.bottle.notes = notesController.text;
-    widget.bottle.imagePath = imageUrl;
-    widget.bottle.price = price;
-    
-    // Explicitly set isForTrade
-    widget.bottle.isForTrade = isForTrade;
-    
-    widget.bottle.ownerId = userId;
-
-    if (!widget.isEdit) {
-      widget.bottle.dateAdded = DateTime.now();
-    }
-
-    await widget.wineManager.updateWine(widget.bottle, widget.row, widget.col);
-
-    if (mounted) {
-      Navigator.pop(context);
-    }
-  } catch (e) {
-    if (mounted) {
-      _showErrorSnackBar('Failed to save wine: ${e.toString()}');
-    }
-  } finally {
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
   }
-}
-
+  
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
