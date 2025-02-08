@@ -247,7 +247,6 @@ class WineBottleCard extends StatelessWidget {
 class AdaptiveWineName extends StatelessWidget {
   final String name;
   final TextStyle baseStyle;
-  /// Container height should be tall enough for two lines.
   final double containerHeight;
 
   const AdaptiveWineName({
@@ -259,30 +258,39 @@ class AdaptiveWineName extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Force a newline at the first space if present.
-    final bool hasSpace = name.contains(' ');
-    final String adjustedName = hasSpace ? name.replaceFirst(' ', '\n') : name;
-    
-    // Use a larger font for single-word names.
-    TextStyle effectiveStyle = hasSpace
-        ? baseStyle
-        : baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 11) + 3);
-    
-    // Minimize the line spacing.
-    effectiveStyle = effectiveStyle.copyWith(height: 1.0);
+    final words = name.split(' ');
+    String displayText;
+    TextStyle effectiveStyle = baseStyle;
+
+    if (words.length == 1) {
+      // Single word - display as is with slightly larger font
+      displayText = name;
+      effectiveStyle = baseStyle.copyWith(
+        fontSize: (baseStyle.fontSize ?? 11) + 2,
+        height: 1.0,
+      );
+    } else if (words.length == 2) {
+      // Two words - put them on separate lines
+      displayText = words.join('\n');
+      effectiveStyle = baseStyle.copyWith(height: 1.0);
+    } else {
+      // More than two words - keep on same line
+      displayText = name;
+      effectiveStyle = baseStyle.copyWith(height: 1.0);
+    }
 
     return SizedBox(
       height: containerHeight,
       width: double.infinity,
       child: Center(
         child: Text(
-          adjustedName,
+          displayText,
           style: effectiveStyle,
           softWrap: true,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
-          textDirection: TextDirection.rtl, // RTL for Hebrew.
+          textDirection: TextDirection.rtl, // RTL for Hebrew
         ),
       ),
     );
