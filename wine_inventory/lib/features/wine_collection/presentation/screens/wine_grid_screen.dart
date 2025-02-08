@@ -204,15 +204,24 @@ class WineGridScreenState extends State<WineGridScreen>
   }
 
 Widget _buildGridView(WineManager wineManager) {
+  final screenWidth = MediaQuery.of(context).size.width;
+  const maxVisibleColumns = 4;
+  final cardWidth = wineManager.settings.columns <= maxVisibleColumns 
+      ? screenWidth / wineManager.settings.columns 
+      : screenWidth / maxVisibleColumns;
+  const cardAspectRatio = 0.35;
+  
   return SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     child: SizedBox(
-      width: MediaQuery.of(context).size.width * 1.28,
+      width: wineManager.settings.columns <= maxVisibleColumns 
+          ? screenWidth 
+          : cardWidth * wineManager.settings.columns,
       child: GridView.builder(
-        padding: const EdgeInsets.fromLTRB(1, 15, 3, 1),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 5,
-          childAspectRatio: 0.32,
+        padding: const EdgeInsets.all(1),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: wineManager.settings.columns,
+          childAspectRatio: cardAspectRatio,
           crossAxisSpacing: 1,
           mainAxisSpacing: 1,
         ),
@@ -222,7 +231,6 @@ Widget _buildGridView(WineManager wineManager) {
           final col = index % wineManager.settings.columns;
           final bottle = wineManager.grid[row][col];
 
-          // Skip if bottle doesn't match selected filter
           if (wineManager.selectedFilter != null && 
               !bottle.isEmpty && 
               bottle.type != wineManager.selectedFilter) {
