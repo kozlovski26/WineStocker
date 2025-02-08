@@ -126,6 +126,8 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
   }
 
   Widget _buildImageSection() {
+    final typeColor = _bottle.type != null ? WineTypeHelper.getTypeColor(_bottle.type!) : Colors.red[400]!;
+    
     return Column(
       children: [
         Stack(
@@ -167,7 +169,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
                 right: 16,
                 child: FloatingActionButton.small(
                   onPressed: _handleImageSelection,
-                  backgroundColor: Colors.red[400]!.withOpacity(0.9),
+                  backgroundColor: typeColor.withOpacity(0.9),
                   child: const Icon(Icons.camera_alt, size: 20),
                 ),
               ),
@@ -183,7 +185,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
                 icon: const Icon(Icons.edit),
                 label: const Text('Edit'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: Colors.red[400]!.withOpacity(0.9),
+                  backgroundColor: typeColor.withOpacity(0.9),
                 ),
               ),
             ),
@@ -665,9 +667,10 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
         : _buildTypeChip();
   }
 
-   Widget _buildTypeChip() {
-    final typeColor = WineTypeHelper.getTypeColor(_bottle.type!);
+  Widget _buildTypeChip() {
     if (_bottle.type == null) return const SizedBox.shrink();
+    
+    final typeColor = WineTypeHelper.getTypeColor(_bottle.type!);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -679,7 +682,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
         _bottle.type!.name,
         style: TextStyle(
           color: typeColor,
-              fontSize: 12,
+          fontSize: 12,
           fontWeight: FontWeight.w500,
         ),
       ),
