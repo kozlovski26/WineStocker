@@ -120,7 +120,7 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
               ),
               const SizedBox(height: 4),
               Text(
-                '$_totalBottles Bottles • \$${_totalCollectionValue.toStringAsFixed(2)}',
+                '$_totalBottles Bottles • ₪${_totalCollectionValue.toStringAsFixed(2)}',
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 14,
@@ -208,15 +208,24 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
       return const Center(child: CircularProgressIndicator());
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    const maxVisibleColumns = 4;
+    final cardWidth = _settings!.columns <= maxVisibleColumns 
+        ? screenWidth / _settings!.columns 
+        : screenWidth / maxVisibleColumns;
+    const cardAspectRatio = 0.35;
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SizedBox(
-        width: MediaQuery.of(context).size.width * 1.28,
+        width: _settings!.columns <= maxVisibleColumns 
+            ? screenWidth 
+            : cardWidth * _settings!.columns,
         child: GridView.builder(
-          padding: const EdgeInsets.fromLTRB(1, 15, 3, 1),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
-            childAspectRatio: 0.32,
+          padding: const EdgeInsets.all(1),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _settings!.columns,
+            childAspectRatio: cardAspectRatio,
             crossAxisSpacing: 1,
             mainAxisSpacing: 1,
           ),
@@ -284,7 +293,7 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
                 ),
               if (bottle.price != null)
                 Text(
-                  'Price: \$${bottle.price!.toStringAsFixed(2)}',
+                  'Price: ₪${bottle.price!.toStringAsFixed(2)}',
                   style: const TextStyle(color: Colors.white70),
                 ),
               if (bottle.notes != null && bottle.notes!.isNotEmpty)
