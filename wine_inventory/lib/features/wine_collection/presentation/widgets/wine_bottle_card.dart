@@ -124,11 +124,10 @@ class WineBottleCard extends StatelessWidget {
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              // Center the contents vertically.
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Winery Row: placed with minimal top spacing.
+                // Winery Row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -158,9 +157,9 @@ class WineBottleCard extends StatelessWidget {
                     ],
                   ],
                 ),
-                // Small gap between winery and wine name.
-                const SizedBox(height: 2),
-                // Adaptive wine name widget.
+                // Reduced gap between winery and wine name
+                const SizedBox(height: 1), // Changed from 2
+                // Adaptive wine name widget
                 AdaptiveWineName(
                   name: bottle.name ?? 'Unnamed Wine',
                   baseStyle: const TextStyle(
@@ -168,11 +167,11 @@ class WineBottleCard extends StatelessWidget {
                     color: Colors.white,
                     fontSize: 11,
                   ),
-                  containerHeight: 30,
+                  containerHeight: 24, // Reduced from 30
                 ),
-                // Increased gap between wine name and year.
-                const SizedBox(height: 4),
-                // Wine Year with less space below.
+                // Reduced gap between wine name and year
+                const SizedBox(height: 1), // Changed from 4
+                // Wine Year
                 if (bottle.year != null)
                   Text(
                     bottle.year!,
