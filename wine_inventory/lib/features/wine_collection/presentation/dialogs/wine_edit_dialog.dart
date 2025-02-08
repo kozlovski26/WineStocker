@@ -235,7 +235,7 @@ Widget _buildWineryField() {
       decoration: InputDecoration(
         labelText: 'Price',
         labelStyle: const TextStyle(color: Colors.white70),
-        prefixText: '\$ ',
+        prefixText: '\₪ ',
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[800]!),
