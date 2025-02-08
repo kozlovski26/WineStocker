@@ -70,39 +70,44 @@ void initState() {
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top + 40.0; // Increased padding for dynamic island
+
     return Stack(
       children: [
-        Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-          ),
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildHeader(context),
-                  const SizedBox(height: 24),
-                  _buildWineryField(), 
-                  const SizedBox(height: 24),
-                  _buildNameField(),
-                  const SizedBox(height: 24),
-                  _buildWineTypeSelector(),
-                  const SizedBox(height: 24),
-                  _buildYearSelector(context),
-                  const SizedBox(height: 24),
-                  _buildNotesField(),
-                  const SizedBox(height: 24),
-                  _buildPriceField(),
-                  const SizedBox(height: 24),
-                  _buildTradeOption(),
-                  const SizedBox(height: 24),
-                  _buildPhotoSection(),
-                  const SizedBox(height: 24),
-                  _buildSaveButton(),
-                ],
+        Dialog(
+          insetPadding: EdgeInsets.zero,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          child: SafeArea(
+            bottom: false,
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              body: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(height: topPadding), // Add space before header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: _buildHeader(context),
+                    ),
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildFormFields(),
+                          const SizedBox(height: 16),
+                          _buildNotesField(),
+                          const SizedBox(height: 16),
+                          _buildSaveButton(),
+                          SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 24),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -133,6 +138,7 @@ void initState() {
         IconButton(
           icon: const Icon(Icons.close, color: Colors.white, size: 28),
           onPressed: () => Navigator.pop(context),
+          padding: const EdgeInsets.all(8),
         ),
       ],
     );
@@ -177,13 +183,16 @@ Widget _buildWineryField() {
   }
 
   Widget _buildWineTypeSelector() {
-    return WineTypeSelector(
-      selectedType: selectedType,
-      onTypeSelected: (type) {
-        setState(() {
-          selectedType = type;
-        });
-      },
+    return SizedBox(
+      width: double.infinity,
+      child: WineTypeSelector(
+        selectedType: selectedType,
+        onTypeSelected: (type) {
+          setState(() {
+            selectedType = type;
+          });
+        },
+      ),
     );
   }
 
@@ -278,31 +287,33 @@ Widget _buildWineryField() {
     return Column(
       children: [
         if (hasPhoto && widget.bottle.imagePath != null)
-          Container(
-            height: 200,
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: widget.bottle.imagePath!.startsWith('http')
-                  ? CachedNetworkImage(
-                      imageUrl: widget.bottle.imagePath!,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => const Center(
-                        child: CircularProgressIndicator(),
+          Center(
+            child: Container(
+              height: 300,
+              width: 200,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: widget.bottle.imagePath!.startsWith('http')
+                    ? CachedNetworkImage(
+                        imageUrl: widget.bottle.imagePath!,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                        errorWidget: (context, url, error) => _buildImageError(),
+                      )
+                    : Image.file(
+                        File(widget.bottle.imagePath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _buildImageError(),
                       ),
-                      errorWidget: (context, url, error) => _buildImageError(),
-                    )
-                  : Image.file(
-                      File(widget.bottle.imagePath!),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _buildImageError(),
-                    ),
+              ),
             ),
           ),
         SizedBox(
@@ -376,6 +387,48 @@ Widget _buildWineryField() {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFormFields() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final fieldWidth = (screenWidth - 48) / 2;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildWineryField(),
+        const SizedBox(height: 16),
+        _buildNameField(),
+        const SizedBox(height: 16),
+        if (!hasPhoto || (hasPhoto && widget.bottle.imagePath != null))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _buildPhotoSection(),
+          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            SizedBox(
+              width: fieldWidth,
+              child: _buildYearSelector(context),
+            ),
+            SizedBox(
+              width: fieldWidth,
+              child: _buildPriceField(),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: 48),
+          child: _buildWineTypeSelector(),
+        ),
+        const SizedBox(height: 16),
+        _buildTradeOption(),
+      ],
     );
   }
 
