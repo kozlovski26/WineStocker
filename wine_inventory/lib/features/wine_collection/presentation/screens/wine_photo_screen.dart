@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -28,12 +29,17 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
 
     _controller = CameraController(
       cameras.first,
-      ResolutionPreset.medium, // Adjusted to avoid high zoom effect
+      ResolutionPreset.max,
       enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
     );
 
     try {
       await _controller?.initialize();
+      await _controller?.lockCaptureOrientation(DeviceOrientation.portraitUp);
+      await _controller?.setFocusMode(FocusMode.auto);
+      await _controller?.setExposureMode(ExposureMode.auto);
+      
       if (mounted) {
         setState(() {
           _isInitialized = true;
@@ -58,8 +64,8 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
         children: [
           if (_isInitialized && _controller != null)
             Center(
-              child: AspectRatio(
-                aspectRatio: _controller!.value.aspectRatio,
+              child: Transform.scale(
+                scale: _getPreviewScale(),
                 child: CameraPreview(_controller!),
               ),
             ),
@@ -86,6 +92,21 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
         ],
       ),
     );
+  }
+
+  double _getPreviewScale() {
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return 1.0;
+    }
+    
+    final size = MediaQuery.of(context).size;
+    final deviceRatio = size.width / size.height;
+    final previewRatio = _controller!.value.aspectRatio;
+    
+    if (deviceRatio < 1.0) {
+      return 1 / (previewRatio * deviceRatio);
+    }
+    return 1 / previewRatio;
   }
 
   Widget _buildHeader() {
