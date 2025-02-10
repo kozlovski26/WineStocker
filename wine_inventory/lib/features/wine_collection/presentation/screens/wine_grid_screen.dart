@@ -723,13 +723,11 @@ void _showBottleOptionsMenu(
               ),
             );
 
-            if (shouldLogout == true) {
-              await context.read<AuthProvider>().signOut();
-              if (context.mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/signin',
-                  (route) => false,
-                );
+            if (shouldLogout == true && mounted) {
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              await authProvider.signOut();
+              if (mounted) {
+                Navigator.pushReplacementNamed(context, '/signin');
               }
             }
             break;

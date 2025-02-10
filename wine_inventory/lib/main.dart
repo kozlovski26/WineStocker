@@ -61,16 +61,16 @@ class MyApp extends StatelessWidget {
           theme: AppTheme.darkTheme,
           home: const AuthWrapper(),
           onGenerateRoute: (settings) {
-            if (settings.name == '/home') {
-              final authProvider = context.read<AuthProvider>();
-              if (authProvider.user == null) {
-                return MaterialPageRoute(builder: (_) => const SignInScreen());
-              }
-              return MaterialPageRoute(
-                builder: (_) => WineGridScreen(userId: authProvider.user!.id),
-              );
-            }
             switch (settings.name) {
+              case '/home':
+                return MaterialPageRoute(
+                  builder: (context) {
+                    final authProvider = context.read<AuthProvider>();
+                    return authProvider.user != null
+                        ? WineGridScreen(userId: authProvider.user!.id)
+                        : const SignInScreen();
+                  },
+                );
               case '/signin':
                 return MaterialPageRoute(builder: (_) => const SignInScreen());
               case '/signup':
@@ -114,6 +114,8 @@ class AuthWrapper extends StatelessWidget {
 
   Future<void> _handleFirstTimeSetup(BuildContext context) async {
     final wineManager = context.read<WineManager>();
-    await wineManager.showFirstTimeSetup(context);
+    if (wineManager != null) {
+      await wineManager.showFirstTimeSetup(context);
+    }
   }
 }
