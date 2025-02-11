@@ -230,7 +230,7 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 100,
+        imageQuality: 85,
       );
 
       if (image != null) {
@@ -280,9 +280,9 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
       return await ImageCropper().cropImage(
         sourcePath: imagePath,
         aspectRatio: const CropAspectRatio(ratioX: 3, ratioY: 4),
-        compressQuality: 85,
-        maxHeight: 800,
-        maxWidth: 800,
+        compressQuality: 70,
+        maxHeight: 600,
+        maxWidth: 600,
         compressFormat: ImageCompressFormat.jpg,
         uiSettings: [
           AndroidUiSettings(
