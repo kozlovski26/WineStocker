@@ -7,6 +7,7 @@ import '../widgets/wine_type_button.dart';
 import '../../domain/models/wine_bottle.dart';
 import '../../domain/models/grid_settings.dart';
 import '../../data/repositories/wine_repository.dart';
+import 'package:wine_inventory/features/wine_collection/utils/wine_type_helper.dart';
 
 class UserCollectionScreen extends StatefulWidget {
   final String userId;
@@ -208,12 +209,50 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
       return const Center(child: CircularProgressIndicator());
     }
 
+    // Check if there are any bottles matching the current filter
+    bool hasMatchingBottles = false;
+    if (_selectedFilter != null) {
+      for (var row in _grid) {
+        for (var bottle in row) {
+          if (!bottle.isEmpty && bottle.type == _selectedFilter) {
+            hasMatchingBottles = true;
+            break;
+          }
+        }
+        if (hasMatchingBottles) break;
+      }
+    }
+
+    // If no matching bottles, show message
+    if (_selectedFilter != null && !hasMatchingBottles) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.liquor_outlined,
+              size: 64,
+              color: Colors.grey[700],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No ${WineTypeHelper.getTypeName(_selectedFilter!)} wines in this collection',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final screenWidth = MediaQuery.of(context).size.width;
     const maxVisibleColumns = 4;
     final cardWidth = _settings!.columns <= maxVisibleColumns 
         ? screenWidth / _settings!.columns 
         : screenWidth / maxVisibleColumns;
-    const cardAspectRatio = 0.35;
+    final cardAspectRatio = _settings!.cardAspectRatio ?? 0.57;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -233,12 +272,25 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
           itemBuilder: (context, index) {
             final row = index ~/ _settings!.columns;
             final col = index % _settings!.columns;
+            
+            if (row >= _grid.length || col >= _grid[row].length) {
+              return const SizedBox.shrink();
+            }
+
             final bottle = _grid[row][col];
 
             if (_selectedFilter != null && 
-                !bottle.isEmpty && 
-                bottle.type != _selectedFilter) {
-              return const SizedBox.shrink();
+                (bottle.isEmpty || bottle.type != _selectedFilter)) {
+              return Container(
+                color: Colors.black12,
+                child: Center(
+                  child: Icon(
+                    Icons.liquor_outlined,
+                    color: Colors.grey[700],
+                    size: 32,
+                  ),
+                ),
+              );
             }
 
             return WineBottleCard(
