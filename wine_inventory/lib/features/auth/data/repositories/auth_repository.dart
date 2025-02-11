@@ -122,4 +122,57 @@ Stream<AppUser?> get authStateChanges {
       rethrow;
     }
   }
+
+  Future<void> deleteAccount() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user logged in');
+      
+      // Delete user data from Firestore
+      final batch = _firestore.batch();
+      
+      // Delete user document
+      batch.delete(_firestore.collection('users').doc(user.uid));
+      
+      // Delete user's wines collection
+      final wines = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('wines')
+          .get();
+      for (var doc in wines.docs) {
+        batch.delete(doc.reference);
+      }
+      
+      // Delete user's settings
+      final settings = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .get();
+      for (var doc in settings.docs) {
+        batch.delete(doc.reference);
+      }
+      
+      // Delete user's drunk wines
+      final drunkWines = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('drunk_wines')
+          .get();
+      for (var doc in drunkWines.docs) {
+        batch.delete(doc.reference);
+      }
+      
+      // Commit Firestore deletions
+      await batch.commit();
+      
+      // Delete Firebase Auth account
+      await user.delete();
+      
+    } catch (e) {
+      print('Delete account error: $e');
+      rethrow;
+    }
+  }
 }

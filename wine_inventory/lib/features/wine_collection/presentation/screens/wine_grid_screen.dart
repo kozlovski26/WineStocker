@@ -731,6 +731,9 @@ void _showBottleOptionsMenu(
               }
             }
             break;
+          case 'delete_account':
+            _showDeleteAccountDialog(context);
+            break;
         }
       },
       itemBuilder: (BuildContext context) => [
@@ -775,7 +778,115 @@ void _showBottleOptionsMenu(
             ],
           ),
         ),
+        PopupMenuItem<String>(
+          value: 'delete_account',
+          child: Row(
+            children: [
+              Icon(Icons.delete_forever, size: 20, color: Colors.red[400]),
+              const SizedBox(width: 8),
+              Text('Delete Account', style: TextStyle(color: Colors.red[400])),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    final confirmationController = TextEditingController();
+    bool isProcessing = false;
+    const confirmationPhrase = 'delete my account';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Delete Account'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'This action cannot be undone. All your data will be permanently deleted.',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Please type "delete my account" to confirm:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: confirmationController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'delete my account',
+                    ),
+                    enabled: !isProcessing,
+                    autocorrect: false,
+                    onChanged: (value) => setState(() {}), // Trigger rebuild to update button state
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isProcessing ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: isProcessing || confirmationController.text != confirmationPhrase
+                      ? null
+                      : () async {
+                          setState(() => isProcessing = true);
+                          try {
+                            final authProvider =
+                                Provider.of<AuthProvider>(context, listen: false);
+                            await authProvider.deleteAccount();
+                            if (mounted) {
+                              Navigator.of(context).pushNamedAndRemoveUntil(
+                                '/signin',
+                                (route) => false,
+                              );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Account deleted successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.red,
+                  ),
+                  child: isProcessing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Delete Account'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

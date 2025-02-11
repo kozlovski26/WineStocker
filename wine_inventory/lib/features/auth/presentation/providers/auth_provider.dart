@@ -95,6 +95,21 @@ Future<void> signIn(String email, String password) async {
     }
   }
 
+  Future<void> deleteAccount() async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      await _authRepository.deleteAccount();
+      
+      _user = null;
+      notifyListeners();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
     _authSubscription?.cancel();
