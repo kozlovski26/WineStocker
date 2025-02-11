@@ -57,6 +57,7 @@ class MyApp extends StatelessWidget {
           ),
         ],
         child: MaterialApp(
+          debugShowCheckedModeBanner: false,
           title: 'Wine Collection',
           theme: AppTheme.darkTheme,
           home: const AuthWrapper(),

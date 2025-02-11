@@ -14,6 +14,8 @@ class WineTypeHelper {
         return Colors.pink[300]!;
       case WineType.dessert:
         return Colors.orange[300]!;
+      default:
+        return Colors.grey[400]!;
     }
   }
 
@@ -29,6 +31,8 @@ class WineTypeHelper {
         return 'Rosé';
       case WineType.dessert:
         return 'Dessert';
+      default:
+        return 'Unknown';
     }
   }
 
@@ -43,6 +47,8 @@ class WineTypeHelper {
       case WineType.rose:
         return Icons.wine_bar;
       case WineType.dessert:
+        return Icons.wine_bar;
+      default:
         return Icons.wine_bar;
     }
   }

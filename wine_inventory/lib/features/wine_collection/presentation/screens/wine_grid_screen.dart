@@ -13,6 +13,8 @@ import '../dialogs/wine_edit_dialog.dart';
 import '../dialogs/settings_dialog.dart';
 import '../dialogs/share_dialog.dart';
 import 'browse_users_screen.dart';
+import 'package:wine_inventory/features/wine_collection/utils/wine_type_helper.dart';
+
 class WineGridScreen extends StatefulWidget {
   final String userId; // Add this line
 
@@ -81,16 +83,51 @@ class WineGridScreenState extends State<WineGridScreen>
             );
           }
           
-          return Scaffold(
-            appBar: _buildAppBar(context, wineManager),
-            body: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildBottleCount(wineManager),
-                _buildFilterButtons(wineManager),
-                _buildWineGrid(wineManager),
-              ],
-            ),
+          return Stack(
+            children: [
+              Scaffold(
+                appBar: _buildAppBar(context, wineManager),
+                body: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildBottleCount(wineManager),
+                    _buildFilterButtons(wineManager),
+                    _buildWineGrid(wineManager),
+                  ],
+                ),
+              ),
+              // Loading Overlay with fade animation
+              if (wineManager.isGridLoading)
+                AnimatedOpacity(
+                  opacity: wineManager.isGridLoading ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    color: Colors.black54,
+                    child: const Center(
+                      child: Card(
+                        color: Colors.black87,
+                        child: Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 16),
+                              Text(
+                                'Updating grid...',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           );
         },
       ),
@@ -197,93 +234,158 @@ class WineGridScreenState extends State<WineGridScreen>
 
   Widget _buildWineGrid(WineManager wineManager) {
     return Expanded(
-      child: wineManager.isGridView
-          ? _buildGridView(wineManager)
-          : _buildListView(wineManager),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: wineManager.isGridView
+            ? _buildGridView(wineManager)
+            : _buildListView(wineManager),
+      ),
     );
   }
 
-Widget _buildGridView(WineManager wineManager) {
-  final screenWidth = MediaQuery.of(context).size.width;
-  const maxVisibleColumns = 4;
-  final cardWidth = wineManager.settings.columns <= maxVisibleColumns 
-      ? screenWidth / wineManager.settings.columns 
-      : screenWidth / maxVisibleColumns;
-  const cardAspectRatio = 0.35;
-  
-  return SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: SizedBox(
-      width: wineManager.settings.columns <= maxVisibleColumns 
-          ? screenWidth 
-          : cardWidth * wineManager.settings.columns,
-      child: GridView.builder(
-        padding: const EdgeInsets.all(1),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: wineManager.settings.columns,
-          childAspectRatio: cardAspectRatio,
-          crossAxisSpacing: 1,
-          mainAxisSpacing: 1,
-        ),
-        itemCount: wineManager.settings.rows * wineManager.settings.columns,
-        itemBuilder: (context, index) {
-          final row = index ~/ wineManager.settings.columns;
-          final col = index % wineManager.settings.columns;
-          final bottle = wineManager.grid[row][col];
-
-          if (wineManager.selectedFilter != null && 
-              !bottle.isEmpty && 
-              bottle.type != wineManager.selectedFilter) {
-            return const SizedBox.shrink();
+  Widget _buildGridView(WineManager wineManager) {
+    // Check if there are any bottles matching the current filter
+    bool hasMatchingBottles = false;
+    if (wineManager.selectedFilter != null) {
+      for (var row in wineManager.grid) {
+        for (var bottle in row) {
+          if (!bottle.isEmpty && bottle.type == wineManager.selectedFilter) {
+            hasMatchingBottles = true;
+            break;
           }
-
-          return WineBottleCard(
-            bottle: bottle,
-            animation: _animation,
-            onTap: () => bottle.isEmpty 
-              ? _showWineEditDialog(context, wineManager, row, col)
-              : _showWineDetailsDialog(context, wineManager, bottle, row, col),
-            onLongPress: () => _handleBottleLongPress(context, wineManager, bottle, row, col),
-          );
-        },
-      ),
-    ),
-  );
-}
-
-Widget _buildListView(WineManager wineManager) {
-  return ListView.builder(
-    padding: const EdgeInsets.all(15),
-    itemCount: wineManager.settings.rows * wineManager.settings.columns,
-    itemBuilder: (context, index) {
-      final row = index ~/ wineManager.settings.columns;
-      final col = index % wineManager.settings.columns;
-      final bottle = wineManager.grid[row][col];
-
-      if (bottle.isEmpty ||
-          (wineManager.selectedFilter != null &&
-              bottle.type != wineManager.selectedFilter)) {
-        return const SizedBox.shrink();
+        }
+        if (hasMatchingBottles) break;
       }
+    }
 
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: SizedBox(
-          height: 250,
-          child: WineBottleCard(
-            bottle: bottle,
-            animation: _animation,
-            onTap: () => _showWineDetailsDialog(
-                context, wineManager, bottle, row, col),
-            onLongPress: () => _showWineEditDialog(
-                context, wineManager, row, col,
-                isEdit: true),
-          ),
+    // If no matching bottles, show message
+    if (wineManager.selectedFilter != null && !hasMatchingBottles) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.liquor_outlined,
+              size: 64,
+              color: Colors.grey[700],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No ${WineTypeHelper.getTypeName(wineManager.selectedFilter!)} wines in your collection',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
         ),
       );
-    },
-  );
-}
+    }
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    const maxVisibleColumns = 4;
+    final cardWidth = wineManager.settings.columns <= maxVisibleColumns 
+        ? screenWidth / wineManager.settings.columns 
+        : screenWidth / maxVisibleColumns;
+    final cardAspectRatio = wineManager.settings.cardAspectRatio ?? 0.57;
+    
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: wineManager.settings.columns <= maxVisibleColumns 
+            ? screenWidth 
+            : cardWidth * wineManager.settings.columns,
+        child: GridView.builder(
+          padding: const EdgeInsets.all(1),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: wineManager.settings.columns,
+            childAspectRatio: cardAspectRatio,
+            crossAxisSpacing: 1,
+            mainAxisSpacing: 1,
+          ),
+          itemCount: wineManager.settings.rows * wineManager.settings.columns,
+          itemBuilder: (context, index) {
+            final row = index ~/ wineManager.settings.columns;
+            final col = index % wineManager.settings.columns;
+            
+            if (row >= wineManager.grid.length || 
+                col >= wineManager.grid[row].length) {
+              return const SizedBox.shrink();
+            }
+
+            final bottle = wineManager.grid[row][col];
+
+            if (wineManager.selectedFilter != null && 
+                (bottle.isEmpty || bottle.type != wineManager.selectedFilter)) {
+              return Container(
+                color: Colors.black12,
+                child: Center(
+                  child: Icon(
+                    Icons.liquor_outlined,
+                    color: Colors.grey[700],
+                    size: 32,
+                  ),
+                ),
+              );
+            }
+
+            return AnimatedOpacity(
+              opacity: wineManager.isGridLoading ? 0.5 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              child: WineBottleCard(
+                bottle: bottle,
+                animation: _animation,
+                onTap: () => bottle.isEmpty 
+                  ? _showWineEditDialog(context, wineManager, row, col)
+                  : _showWineDetailsDialog(context, wineManager, bottle, row, col),
+                onLongPress: () => _handleBottleLongPress(
+                  context, 
+                  wineManager, 
+                  bottle, 
+                  row, 
+                  col
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListView(WineManager wineManager) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(15),
+      itemCount: wineManager.settings.rows * wineManager.settings.columns,
+      itemBuilder: (context, index) {
+        final row = index ~/ wineManager.settings.columns;
+        final col = index % wineManager.settings.columns;
+        final bottle = wineManager.grid[row][col];
+
+        if (bottle.isEmpty ||
+            (wineManager.selectedFilter != null &&
+                bottle.type != wineManager.selectedFilter)) {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: SizedBox(
+            height: 250,
+            child: WineBottleCard(
+              bottle: bottle,
+              animation: _animation,
+              onTap: () => _showWineDetailsDialog(
+                  context, wineManager, bottle, row, col),
+              onLongPress: () => _showWineEditDialog(
+                  context, wineManager, row, col,
+                  isEdit: true),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   void _showWineDetailsDialog(
     BuildContext context,
