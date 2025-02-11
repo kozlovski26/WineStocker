@@ -132,7 +132,7 @@ Widget _buildBottleContent(BuildContext context) {
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 11,
-                  height: 0.4,
+                  height: 0.6,
                   letterSpacing: 0.3,
                   fontWeight: FontWeight.w600,
                 ),
@@ -140,7 +140,7 @@ Widget _buildBottleContent(BuildContext context) {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
               ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 3),
             Text(
               bottle.name ?? 'Unnamed Wine',
               style: const TextStyle(

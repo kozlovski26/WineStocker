@@ -8,6 +8,8 @@ import '../../domain/models/wine_bottle.dart';
 import '../../domain/models/grid_settings.dart';
 import '../../data/repositories/wine_repository.dart';
 import 'package:wine_inventory/features/wine_collection/utils/wine_type_helper.dart';
+import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class UserCollectionScreen extends StatefulWidget {
   final String userId;
@@ -308,76 +310,154 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.black,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      builder: (context) => _buildWineDetailsSheet(bottle),
-    );
-  }
-
-  Widget _buildWineDetailsSheet(WineBottle bottle) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (context, scrollController) => SingleChildScrollView(
-        controller: scrollController,
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                bottle.name ?? 'Unnamed Wine',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (bottle.year != null)
-                Text(
-                  'Year: ${bottle.year}',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-              if (bottle.price != null)
-                Text(
-                  'Price: ₪${bottle.price!.toStringAsFixed(2)}',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-              if (bottle.notes != null && bottle.notes!.isNotEmpty)
-                Text(
-                  'Notes: ${bottle.notes}',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: bottle.isForTrade 
-                      ? _initiateTrade 
-                      : null,
-                  icon: const Icon(Icons.swap_horiz),
-                  label: Text(
-                    bottle.isForTrade 
-                      ? 'Request Trade' 
-                      : 'Not Available for Trade'
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: bottle.isForTrade 
-                      ? Colors.green 
-                      : Colors.grey,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SingleChildScrollView(
+            controller: scrollController,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Drag handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 8, bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[600],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-            ],
+                if (bottle.imagePath != null)
+                  GestureDetector(
+                    onTap: () => _showFullScreenImage(context, bottle.imagePath!),
+                    child: Container(
+                      height: 300,
+                      width: double.infinity,
+                      child: _buildWineImage(bottle.imagePath!),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bottle.name ?? 'Unnamed Wine',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (bottle.type != null)
+                        _buildDetailRow(
+                          'Type',
+                          WineTypeHelper.getTypeName(bottle.type!),
+                        ),
+                      if (bottle.year != null)
+                        _buildDetailRow('Year', bottle.year.toString()),
+                      if (bottle.price != null)
+                        _buildDetailRow(
+                          'Price',
+                          '₪${bottle.price!.toStringAsFixed(2)}',
+                        ),
+                      if (bottle.notes?.isNotEmpty ?? false)
+                        _buildDetailRow('Notes', bottle.notes!),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFullScreenImage(BuildContext context, String imagePath) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: _buildWineImage(imagePath),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWineImage(String imagePath) {
+    if (imagePath.startsWith('http')) {
+      return CachedNetworkImage(
+        imageUrl: imagePath,
+        fit: BoxFit.contain,
+        placeholder: (context, url) => Container(
+          color: Colors.grey[900],
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+        errorWidget: (context, url, error) => Container(
+          color: Colors.grey[900],
+          child: const Icon(Icons.error_outline, size: 48, color: Colors.white54),
+        ),
+      );
+    } else {
+      return Image.file(
+        File(imagePath),
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: Colors.grey[900],
+          child: const Icon(Icons.error_outline, size: 48, color: Colors.white54),
+        ),
+      );
+    }
   }
 
   void _initiateTrade() {
