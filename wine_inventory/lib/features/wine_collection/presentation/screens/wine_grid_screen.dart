@@ -167,13 +167,12 @@ class WineGridScreenState extends State<WineGridScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 7),
       child: Text(
-        '${wineManager.totalBottles} Bottels',
+        '${wineManager.totalBottles} Bottles',
         style: const TextStyle(
           fontSize: 20,
           color: Colors.white70,
         ),
       ),
-      
     );
   }
 

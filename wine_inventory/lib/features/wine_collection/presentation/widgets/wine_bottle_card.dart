@@ -131,8 +131,8 @@ Widget _buildBottleContent(BuildContext context) {
                 bottle.winery!,
                 style: const TextStyle(
                   color: Colors.white70,
-                  fontSize: 11,
-                  height: 0.6,
+                  fontSize: 10,
+                  height: 1.0,
                   letterSpacing: 0.3,
                   fontWeight: FontWeight.w600,
                 ),
