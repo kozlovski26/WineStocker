@@ -7,6 +7,13 @@ import '../../data/repositories/wine_repository.dart';
 import 'package:wine_inventory/core/models/wine_type.dart';  // Fixed import path
 import '../dialogs/first_time_setup_dialog.dart';
 
+class Position {
+  final int row;
+  final int col;
+  
+  Position(this.row, this.col);
+}
+
 class WineManager extends ChangeNotifier {
   final WineRepository repository;
   List<List<WineBottle>> _grid = [];
@@ -23,6 +30,7 @@ class WineManager extends ChangeNotifier {
   int _copiedWineRow = -1;
   int _copiedWineCol = -1;
   bool isDragMode = false;
+  Position? copiedWinePosition;
 
   // Add debounce timer
   Timer? _loadingDebounceTimer;
@@ -85,25 +93,11 @@ class WineManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> copyWine(WineBottle bottle, int row, int col) async {
-    _copiedWine = WineBottle(
-      name: bottle.name,
-      winery: bottle.winery,
-      type: bottle.type,
-      year: bottle.year,
-      price: bottle.price,
-      rating: bottle.rating,
-      notes: bottle.notes,
-      imagePath: bottle.imagePath,
-      dateAdded: bottle.dateAdded,
-      dateDrunk: bottle.dateDrunk,
-      isFavorite: bottle.isFavorite,
-      isDrunk: bottle.isDrunk,
-      ownerId: bottle.ownerId,
-      isForTrade: bottle.isForTrade,
-    );
+  void copyWine(WineBottle bottle, int row, int col) {
+    _copiedWine = bottle.copyWith();
     _copiedWineRow = row;
     _copiedWineCol = col;
+    copiedWinePosition = Position(row, col);
     notifyListeners();
   }
 
@@ -372,6 +366,7 @@ class WineManager extends ChangeNotifier {
     _copiedWine = null;
     _copiedWineRow = -1;
     _copiedWineCol = -1;
+    copiedWinePosition = null;
     notifyListeners();
   }
 

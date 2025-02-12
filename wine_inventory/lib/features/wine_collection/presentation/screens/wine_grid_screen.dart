@@ -504,7 +504,22 @@ void _showBottleOptionsMenu(
                 title: const Text('Replace Wine'),
                 onTap: () async {
                   Navigator.pop(context);
-                 await wineManager.pasteWine(row, col);
+                  // Store the current bottle before pasting
+                  final currentBottle = bottle.copyWith();
+                  final currentRow = row;
+                  final currentCol = col;
+                  
+                  // Paste the copied wine
+                  await wineManager.pasteWine(row, col);
+                  
+                  // Now paste the previous bottle to the copied wine's original position
+                  if (wineManager.copiedWinePosition != null) {
+                    final originalPos = wineManager.copiedWinePosition!;
+                    // Temporarily store the current bottle
+                    wineManager.copyWine(currentBottle, currentRow, currentCol);
+                    // Paste it to the original position
+                    await wineManager.pasteWine(originalPos.row, originalPos.col);
+                  }
                 },
               ),
             ListTile(
