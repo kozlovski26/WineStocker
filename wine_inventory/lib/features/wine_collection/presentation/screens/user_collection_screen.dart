@@ -298,7 +298,7 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
             return WineBottleCard(
               bottle: bottle,
               animation: _animation,
-              onTap: () => _showWineDetails(bottle),
+              onTap: bottle.isEmpty ? null : () => _showWineDetails(bottle),
             );
           },
         ),
@@ -426,7 +426,10 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
             child: InteractiveViewer(
               minScale: 0.5,
               maxScale: 4.0,
-              child: _buildWineImage(imagePath),
+              child: Hero(
+                tag: 'user_collection_${imagePath}',
+                child: _buildWineImage(imagePath),
+              ),
             ),
           ),
         ),
@@ -436,25 +439,31 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
 
   Widget _buildWineImage(String imagePath) {
     if (imagePath.startsWith('http')) {
-      return CachedNetworkImage(
-        imageUrl: imagePath,
-        fit: BoxFit.contain,
-        placeholder: (context, url) => Container(
-          color: Colors.grey[900],
-          child: const Center(child: CircularProgressIndicator()),
-        ),
-        errorWidget: (context, url, error) => Container(
-          color: Colors.grey[900],
-          child: const Icon(Icons.error_outline, size: 48, color: Colors.white54),
+      return Hero(
+        tag: 'user_collection_${imagePath}',
+        child: CachedNetworkImage(
+          imageUrl: imagePath,
+          fit: BoxFit.contain,
+          placeholder: (context, url) => Container(
+            color: Colors.grey[900],
+            child: const Center(child: CircularProgressIndicator()),
+          ),
+          errorWidget: (context, url, error) => Container(
+            color: Colors.grey[900],
+            child: const Icon(Icons.error_outline, size: 48, color: Colors.white54),
+          ),
         ),
       );
     } else {
-      return Image.file(
-        File(imagePath),
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => Container(
-          color: Colors.grey[900],
-          child: const Icon(Icons.error_outline, size: 48, color: Colors.white54),
+      return Hero(
+        tag: 'user_collection_${imagePath}',
+        child: Image.file(
+          File(imagePath),
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => Container(
+            color: Colors.grey[900],
+            child: const Icon(Icons.error_outline, size: 48, color: Colors.white54),
+          ),
         ),
       );
     }
