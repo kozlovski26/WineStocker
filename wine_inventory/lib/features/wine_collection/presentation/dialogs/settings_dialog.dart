@@ -87,10 +87,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
   }
 
   Future<void> _handleGridSizeChange() async {
-    final hasBottlesOutside = await _checkForBottlesOutsideNewGrid(_rows, _columns);
+    // Only check for grid size changes if rows or columns are different
+    final gridSizeChanged = _rows != widget.wineManager.settings.rows || 
+                           _columns != widget.wineManager.settings.columns;
     
-    if (hasBottlesOutside && !await _showWarningDialog(context)) {
-      return;
+    if (gridSizeChanged) {
+      final hasBottlesOutside = await _checkForBottlesOutsideNewGrid(_rows, _columns);
+      if (hasBottlesOutside && !await _showWarningDialog(context)) {
+        return;
+      }
     }
 
     setState(() => _isProcessing = true);
@@ -105,58 +110,60 @@ class _SettingsDialogState extends State<SettingsDialog> {
             : widget.wineManager.settings.cardAspectRatio,
       );
 
-      // Get all non-empty bottles from current grid
-      final List<WineBottle> bottles = [];
-      final currentGrid = widget.wineManager.grid;
-      
-      for (int i = 0; i < currentGrid.length; i++) {
-        for (int j = 0; j < currentGrid[i].length; j++) {
-          if (!currentGrid[i][j].isEmpty) {
-            bottles.add(currentGrid[i][j]);
+      if (gridSizeChanged) {
+        // Only reorganize bottles if grid size changed
+        final List<WineBottle> bottles = [];
+        final currentGrid = widget.wineManager.grid;
+        
+        for (int i = 0; i < currentGrid.length; i++) {
+          for (int j = 0; j < currentGrid[i].length; j++) {
+            if (!currentGrid[i][j].isEmpty) {
+              bottles.add(currentGrid[i][j]);
+            }
           }
         }
+
+        // Create new grid with new dimensions
+        List<List<WineBottle>> newGrid = List.generate(
+          _rows,
+          (i) => List.generate(_columns, (j) => WineBottle()),
+        );
+
+        // Place bottles in new grid
+        int currentRow = 0;
+        int currentCol = 0;
+
+        for (var bottle in bottles) {
+          while (currentRow < _rows) {
+            if (currentCol >= _columns) {
+              currentRow++;
+              currentCol = 0;
+              continue;
+            }
+            
+            if (newGrid[currentRow][currentCol].isEmpty) {
+              newGrid[currentRow][currentCol] = bottle;
+              currentCol++;
+              break;
+            }
+            
+            currentCol++;
+          }
+        }
+
+        // Save the reorganized grid
+        await widget.wineManager.repository.saveWineGrid(newGrid);
       }
 
       // Save new settings
       await widget.wineManager.saveSettings(newSettings);
-
-      // Create new grid with new dimensions
-      List<List<WineBottle>> newGrid = List.generate(
-        _rows,
-        (i) => List.generate(_columns, (j) => WineBottle()),
-      );
-
-      // Place bottles in new grid
-      int currentRow = 0;
-      int currentCol = 0;
-
-      for (var bottle in bottles) {
-        while (currentRow < _rows) {
-          if (currentCol >= _columns) {
-            currentRow++;
-            currentCol = 0;
-            continue;
-          }
-          
-          if (newGrid[currentRow][currentCol].isEmpty) {
-            newGrid[currentRow][currentCol] = bottle;
-            currentCol++;
-            break;
-          }
-          
-          currentCol++;
-        }
-      }
-
-      // Save the reorganized grid
-      await widget.wineManager.repository.saveWineGrid(newGrid);
       await widget.wineManager.loadData();
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Grid settings updated successfully'),
+            content: const Text('Settings updated successfully'),
             backgroundColor: Colors.green[700],
             behavior: SnackBarBehavior.floating,
           ),
@@ -166,7 +173,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error updating grid: ${e.toString()}'),
+            content: Text('Error updating settings: ${e.toString()}'),
             backgroundColor: Colors.red[700],
             behavior: SnackBarBehavior.floating,
           ),
