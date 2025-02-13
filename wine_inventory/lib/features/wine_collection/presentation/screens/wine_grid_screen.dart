@@ -500,8 +500,8 @@ void _showBottleOptionsMenu(
             ),
             if (wineManager.hasCopiedWine)
               ListTile(
-                leading: const Icon(Icons.paste),
-                title: const Text('Replace Wine'),
+                leading: const Icon(Icons.swap_horizontal_circle),
+                title: const Text('Swap Wine'),
                 onTap: () async {
                   Navigator.pop(context);
                   // Store the current bottle before pasting
@@ -563,7 +563,7 @@ void _showBottleOptionsMenu(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (wineManager.hasCopiedWine)
+                  if (wineManager.hasCopiedWine) ...[
                     ListTile(
                       leading: isProcessing 
                         ? const SizedBox(
@@ -580,6 +580,7 @@ void _showBottleOptionsMenu(
                         setState(() => isProcessing = true);
                         try {
                           await wineManager.pasteWine(row, col);
+                          await wineManager.clearCopiedWine(); // Clear copied wine after successful paste
                           if (context.mounted) {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -610,6 +611,63 @@ void _showBottleOptionsMenu(
                         }
                       },
                     ),
+                    ListTile(
+                      leading: isProcessing 
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.swap_horizontal_circle),
+                      title: const Text('Move Wine Here'),
+                      subtitle: const Text('Move wine to this slot and clear original'),
+                      enabled: !isProcessing,
+                      onTap: () async {
+                        setState(() => isProcessing = true);
+                        try {
+                          // Paste the copied wine to this empty slot
+                          await wineManager.pasteWine(row, col);
+                          
+                          // If there was an original position, clear that slot
+                          if (wineManager.copiedWinePosition != null) {
+                            final originalPos = wineManager.copiedWinePosition!;
+                            await wineManager.deleteWine(originalPos.row, originalPos.col);
+                            await wineManager.clearCopiedWine(); // Clear copied wine after successful move
+                          }
+                          
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Wine moved successfully'),
+                                backgroundColor: Colors.green[700],
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error moving wine: ${e.toString()}'),
+                                backgroundColor: Colors.red[700],
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ],
                   ListTile(
                     leading: const Icon(Icons.add),
                     title: const Text('Add New Wine'),

@@ -146,7 +146,7 @@ Widget _buildBottleContent(BuildContext context) {
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
-                fontSize: 13,
+                fontSize: 11,
                 height: 1,
                 letterSpacing: 0.2,
               ),
