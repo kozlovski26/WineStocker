@@ -382,13 +382,40 @@ class WineRepository {
     }
   }
 
+  Future<void> markFirstTimeSetupComplete() async {
+    try {
+      await _userSettings.doc('setup').set({
+        'completed': true,
+        'completedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error marking first time setup complete: $e');
+      rethrow;
+    }
+  }
+
   Future<bool> isFirstTimeSetup() async {
     try {
-      final doc = await _userSettings.doc('grid').get();
-      return !doc.exists;
+      // First check if grid settings exist
+      final gridDoc = await _userSettings.doc('grid').get();
+      if (gridDoc.exists) {
+        // If grid settings exist, user has already set up their collection
+        return false;
+      }
+      
+      // Check if there are any existing wines
+      final winesSnapshot = await _userWines.limit(1).get();
+      if (winesSnapshot.docs.isNotEmpty) {
+        // If there are existing wines, user has already set up their collection
+        return false;
+      }
+
+      // If no grid settings and no wines exist, it's first time setup
+      return true;
     } catch (e) {
       print('Error checking first time setup: $e');
-      rethrow;
+      // In case of error, assume it's not first time to prevent data loss
+      return false;
     }
   }
 

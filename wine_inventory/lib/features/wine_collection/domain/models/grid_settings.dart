@@ -11,7 +11,7 @@ class GridSettings {
 
   factory GridSettings.defaultSettings() {
     return const GridSettings(
-      rows: 8,  // Make sure these match your desired grid size
+      rows: 3,  
       columns: 3,
       cardAspectRatio: 0.57,
     );

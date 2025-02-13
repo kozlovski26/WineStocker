@@ -221,17 +221,39 @@ class WineManager extends ChangeNotifier {
     final isFirstTime = await repository.isFirstTimeSetup();
     if (!isFirstTime) return false;
 
-    final newSettings = await showDialog<GridSettings>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (context) => const FirstTimeSetupDialog(),
     );
 
-    if (newSettings != null) {
-      settings = newSettings;
-      await repository.saveGridSettings(settings);
-      await loadData();
-      return true;
+    if (result != null) {
+      // Set loading state
+      _isLoading = true;
+      notifyListeners();
+
+      try {
+        settings = result['settings'] as GridSettings;
+        _grid = result['grid'] as List<List<WineBottle>>;
+        
+        // Save both settings and grid
+        await Future.wait([
+          repository.saveGridSettings(settings),
+          repository.saveWineGrid(_grid),
+          repository.markFirstTimeSetupComplete(),  // Mark setup as complete
+        ]);
+
+        // Update statistics and notify listeners
+        _updateStatistics();
+        _isInitialized = true;
+        return true;
+      } catch (e) {
+        print('Error in first time setup: $e');
+        rethrow;
+      } finally {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
     return false;
   }
@@ -386,8 +408,9 @@ class WineManager extends ChangeNotifier {
 
   @override
   void dispose() {
-    _grid.clear();
-    drunkWines.clear();
+    // Create new empty lists instead of clearing fixed-length lists
+    _grid = [];
+    drunkWines = [];
     _copiedWine = null;
     _loadingDebounceTimer?.cancel();
     super.dispose();

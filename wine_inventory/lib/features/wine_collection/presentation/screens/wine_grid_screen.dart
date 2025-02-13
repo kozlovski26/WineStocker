@@ -49,7 +49,10 @@ class WineGridScreenState extends State<WineGridScreen>
     );
     _repository = WineRepository(widget.userId); 
     _wineManager = WineManager(_repository);
-    _wineManager.loadData();
+    
+    // Add this: Initialize with first-time setup check
+    _initializeWineManager();
+    
     _animationController.forward();
     _checkProStatus();
   }
@@ -66,6 +69,15 @@ class WineGridScreenState extends State<WineGridScreen>
       setState(() {
         _isPro = isPro;
       });
+    }
+  }
+
+  Future<void> _initializeWineManager() async {
+    if (mounted) {
+      final isFirstTime = await _wineManager.showFirstTimeSetup(context);
+      if (!isFirstTime) {
+        await _wineManager.loadData();
+      }
     }
   }
 
