@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../managers/wine_manager.dart';
+import '../../utils/share_helper.dart';  // Add this import
 
 class ShareDialog extends StatelessWidget {
   final WineManager wineManager;
@@ -29,7 +30,7 @@ class ShareDialog extends StatelessWidget {
             title: const Text('Share via Email'),
             onTap: () {
               Navigator.pop(context);
-              // ShareHelper.shareWineList(wineManager);
+              ShareHelper.shareWineList(wineManager);
             },
           ),
           ListTile(
@@ -37,7 +38,7 @@ class ShareDialog extends StatelessWidget {
             title: const Text('Share via Other Apps'),
             onTap: () {
               Navigator.pop(context);
-              // ShareHelper.shareWineList(wineManager);
+              ShareHelper.shareWineList(wineManager);
             },
           ),
           const SizedBox(height: 8),
