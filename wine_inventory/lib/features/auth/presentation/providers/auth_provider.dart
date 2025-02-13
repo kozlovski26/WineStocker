@@ -2,12 +2,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../domain/models/app_user.dart';
+import '../../domain/models/auth_exception.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _authRepository;
   AppUser? _user;
   bool _isLoading = false;
   StreamSubscription<AppUser?>? _authSubscription;
+  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
   AuthProvider(this._authRepository) {
     _initAuthState();
@@ -107,6 +110,19 @@ Future<void> signIn(String email, String password) async {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _firebaseAuth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      throw AuthException.fromCode(e.code);
+    } catch (e) {
+      throw AuthException(
+        code: 'unknown',
+        message: 'An unexpected error occurred.',
+      );
     }
   }
 
