@@ -14,7 +14,7 @@ import '../dialogs/settings_dialog.dart';
 import '../dialogs/share_dialog.dart';
 import 'browse_users_screen.dart';
 import 'package:wine_inventory/features/wine_collection/utils/wine_type_helper.dart';
-
+import '../../../profile/presentation/pages/profile_page.dart';
 class WineGridScreen extends StatefulWidget {
   final String userId; // Add this line
 
@@ -863,6 +863,16 @@ void _showBottleOptionsMenu(
       icon: const Icon(Icons.more_vert),
       onSelected: (value) async {
         switch (value) {
+          case 'profile':
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProfilePage(
+                  repository: _repository,
+                ),
+              ),
+            );
+            break;
           case 'browse':
             Navigator.push(
               context,
@@ -923,6 +933,16 @@ void _showBottleOptionsMenu(
         }
       },
       itemBuilder: (BuildContext context) => [
+        const PopupMenuItem<String>(
+          value: 'profile',
+          child: Row(
+            children: [
+              Icon(Icons.person, size: 20),
+              SizedBox(width: 8),
+              Text('Profile'),
+            ],
+          ),
+        ),
         if (_isPro)
           const PopupMenuItem<String>(
             value: 'browse',
@@ -944,6 +964,7 @@ void _showBottleOptionsMenu(
             ],
           ),
         ),
+     
         const PopupMenuItem<String>(
           value: 'settings',
           child: Row(

@@ -6,8 +6,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../domain/models/wine_bottle.dart';
 import '../managers/wine_manager.dart';
 import '../../utils/wine_type_helper.dart';
+import './wine_details_dialog.dart';
 
-class DrunkWinesDialog extends StatelessWidget {
+class DrunkWinesDialog extends StatefulWidget {
   final WineManager wineManager;
 
   const DrunkWinesDialog({
@@ -16,8 +17,13 @@ class DrunkWinesDialog extends StatelessWidget {
   });
 
   @override
+  State<DrunkWinesDialog> createState() => _DrunkWinesDialogState();
+}
+
+class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
+  @override
   Widget build(BuildContext context) {
-    final sortedDrunkWines = List<WineBottle>.from(wineManager.drunkWines)
+    final sortedDrunkWines = List<WineBottle>.from(widget.wineManager.drunkWines)
       ..sort((a, b) => (b.dateDrunk ?? DateTime.now())
           .compareTo(a.dateDrunk ?? DateTime.now()));
 
@@ -36,7 +42,94 @@ class DrunkWinesDialog extends StatelessWidget {
             if (sortedDrunkWines.isEmpty)
               _buildEmptyState()
             else
-              _buildDrunkWinesList(sortedDrunkWines, scrollController),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: sortedDrunkWines.length,
+                  itemBuilder: (context, index) {
+                    final wine = sortedDrunkWines[index];
+                    return Dismissible(
+                      key: ObjectKey(wine),
+                      background: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.red[900]?.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 24),
+                        child: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      direction: DismissDirection.endToStart,
+                      onDismissed: (direction) => _handleDismiss(context, wine),
+                      child: Card(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: InkWell(
+                          onTap: () => _showWineDetails(context, wine),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                if (wine.imagePath != null) ...[
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: CachedNetworkImage(
+                                      imageUrl: wine.imagePath!,
+                                      width: 80,
+                                      height: 120,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                ],
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        wine.name ?? 'Unnamed Wine',
+                                        style: GoogleFonts.playfairDisplay(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      if (wine.year != null) ...[
+                                        Text(wine.year!),
+                                        const SizedBox(height: 4),
+                                      ],
+                                      Text(
+                                        'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
+                                        style: TextStyle(
+                                          color: Colors.grey[400],
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.copy),
+                                  onPressed: () => _showGridSelectionDialog(context, wine),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
           ],
         ),
       ),
@@ -127,175 +220,102 @@ class DrunkWinesDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildDrunkWinesList(
-      List<WineBottle> sortedDrunkWines, ScrollController scrollController) {
-    return Expanded(
-      child: ListView.builder(
-        controller: scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: sortedDrunkWines.length,
-        itemBuilder: (context, index) {
-          final wine = sortedDrunkWines[index];
-          return Dismissible(
-            key: ObjectKey(wine),
-            background: Container(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.red[900]?.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 24),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.white,
-                size: 28,
-              ),
-            ),
-            direction: DismissDirection.endToStart,
-            onDismissed: (direction) => _handleDismiss(context, wine),
-            child: _buildDrunkWineCard(wine),
-          );
-        },
+  Widget _buildWineImage(String imagePath) {
+    return CachedNetworkImage(
+      imageUrl: imagePath,
+      width: double.infinity,
+      height: 300,
+      fit: BoxFit.cover,
+      errorWidget: (context, url, error) => Container(
+        color: Colors.grey[800],
+        child: Icon(
+          Icons.wine_bar,
+          size: 80,
+          color: Colors.grey[600],
+        ),
+      ),
+      placeholder: (context, url) => Container(
+        color: Colors.grey[800],
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
       ),
     );
   }
 
-  Widget _buildDrunkWineCard(WineBottle wine) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+  void _showWineDetails(BuildContext context, WineBottle wine) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          height: 180,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.grey[900]!,
-                Colors.grey[850]!,
-              ],
-            ),
-          ),
-          child: Row(
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 120,
-                child: _buildWineImage(wine.imagePath),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        wine.name ?? 'Unnamed Wine',
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+              if (wine.imagePath != null) ...[
+                _buildWineImage(wine.imagePath!),
+                const SizedBox(height: 16),
+              ],
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      wine.name ?? 'Unnamed Wine',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
-                      const SizedBox(height: 8),
-                      if (wine.year != null) ...[
-                        Text(
-                          wine.year!,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (wine.year != null) ...[
                       Text(
-                        'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
+                        wine.year!,
                         style: TextStyle(
                           color: Colors.grey[400],
-                          fontSize: 14,
+                          fontSize: 18,
                         ),
                       ),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: WineTypeHelper.getTypeColor(wine.type!)
-                                  .withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: WineTypeHelper.getTypeColor(wine.type!)
-                                    .withOpacity(0.3),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.wine_bar,
-                                  size: 16,
-                                  color: WineTypeHelper.getTypeColor(wine.type!),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  WineTypeHelper.getTypeName(wine.type!),
-                                  style: TextStyle(
-                                    color: WineTypeHelper.getTypeColor(wine.type!),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Spacer(),
-                          if (wine.rating != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.amber[900]?.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.amber[600]!.withOpacity(0.3),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.star_rounded,
-                                    color: Colors.amber[600],
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    wine.rating!.toString(),
-                                    style: TextStyle(
-                                      color: Colors.amber[500],
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
+                      const SizedBox(height: 8),
                     ],
-                  ),
+                    Text(
+                      'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    if (wine.type != null)
+                      _buildDetailRow('Type', wine.type!.name),
+                    if (wine.price != null)
+                      _buildDetailRow('Price', '\$${wine.price!.toStringAsFixed(2)}'),
+                    if (wine.notes != null && wine.notes!.isNotEmpty)
+                      _buildDetailRow('Notes', wine.notes!),
+                    const SizedBox(height: 32),
+                    FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showGridSelectionDialog(context, wine);
+                      },
+                      icon: const Icon(Icons.copy),
+                      label: const Text('Create Copy in Collection'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -305,80 +325,266 @@ class DrunkWinesDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildWineImage(String? imagePath) {
-    if (imagePath == null) {
-      return Container(
-        color: Colors.grey[100],
-        child: Center(
-          child: Icon(
-            Icons.wine_bar_rounded,
-            color: Colors.grey[400],
-            size: 40,
-          ),
-        ),
-      );
-    }
-
-    if (imagePath.startsWith('http')) {
-      return CachedNetworkImage(
-        imageUrl: imagePath,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => Container(
-          color: Colors.grey[100],
-          child: const Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
-        ),
-        errorWidget: (context, url, error) => _buildImageError(),
-      );
-    } else {
-      return Image.file(
-        File(imagePath),
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _buildImageError(),
-      );
-    }
-  }
-
-  Widget _buildImageError() {
-    return Container(
-      color: Colors.grey[100],
-      child: Center(
-        child: Icon(
-          Icons.error_outline_rounded,
-          color: Colors.grey[400],
-          size: 40,
-        ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   void _handleDismiss(BuildContext context, WineBottle wine) {
-    wineManager.removeDrunkWine(wine);
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Wine removed from history'),
-        backgroundColor: Colors.red[900],
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        action: SnackBarAction(
-          label: 'UNDO',
-          textColor: Colors.white,
-          onPressed: () async {
-            wineManager.drunkWines.add(wine);
-            wineManager.drunkWines.sort((a, b) =>
-                (b.dateDrunk ?? DateTime.now())
-                    .compareTo(a.dateDrunk ?? DateTime.now()));
-            await wineManager.saveData();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        bool isProcessing = false;
+        
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: Colors.grey[900],
+              title: const Text(
+                'Delete from History',
+                style: TextStyle(color: Colors.white),
+              ),
+              content: const Text(
+                'Are you sure you want to remove this wine from your drinking history?',
+                style: TextStyle(color: Colors.white70),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isProcessing 
+                    ? null 
+                    : () {
+                        Navigator.pop(context);
+                        // Rebuild the list to restore the item
+                        this.setState(() {});
+                      },
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.red[700],
+                  ),
+                  onPressed: isProcessing
+                    ? null
+                    : () async {
+                        setState(() => isProcessing = true);
+                        try {
+                          await widget.wineManager.removeDrunkWine(wine);
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Wine removed from history'),
+                                backgroundColor: Colors.red[900],
+                                behavior: SnackBarBehavior.floating,
+                                margin: const EdgeInsets.all(16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error: ${e.toString()}'),
+                                backgroundColor: Colors.red[900],
+                                behavior: SnackBarBehavior.floating,
+                                margin: const EdgeInsets.all(16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                  child: isProcessing
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text('Delete'),
+                ),
+              ],
+            );
           },
-        ),
-      ),
+        );
+      },
     );
+  }
+
+  void _showGridSelectionDialog(BuildContext context, WineBottle wine) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.grey[900],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Select Empty Slot',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.5,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(
+                          widget.wineManager.settings.rows,
+                          (row) => Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(
+                              widget.wineManager.settings.columns,
+                              (col) {
+                                final currentBottle = widget.wineManager.grid[row][col];
+                                return Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: InkWell(
+                                    onTap: currentBottle.isEmpty 
+                                      ? () => _restoreToPosition(context, wine, row, col)
+                                      : null,
+                                    child: Container(
+                                      width: 60,
+                                      height: 60,
+                                      decoration: BoxDecoration(
+                                        color: currentBottle.isEmpty 
+                                          ? Colors.green.withOpacity(0.2)
+                                          : Colors.red.withOpacity(0.2),
+                                        border: Border.all(
+                                          color: currentBottle.isEmpty 
+                                            ? Colors.green.withOpacity(0.5)
+                                            : Colors.red.withOpacity(0.5),
+                                          width: 1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(
+                                        currentBottle.isEmpty 
+                                          ? Icons.add
+                                          : Icons.wine_bar,
+                                        color: currentBottle.isEmpty 
+                                          ? Colors.green[400]
+                                          : Colors.red[400],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _restoreToPosition(
+    BuildContext context,
+    WineBottle wine,
+    int row,
+    int col,
+  ) async {
+    try {
+      // Create restored wine
+      final restoredWine = wine.copyWith(
+        isDrunk: false,
+        dateDrunk: null,
+        dateAdded: DateTime.now(),
+      );
+
+      // Update grid
+      await widget.wineManager.updateWine(restoredWine, row, col);
+
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${wine.name} copied to collection'),
+            backgroundColor: Colors.green[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error restoring wine: ${e.toString()}'),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../domain/models/wine_bottle.dart';
 import '../../utils/wine_type_helper.dart';
+import '../../../../features/profile/presentation/pages/profile_page.dart';
 
 class WineBottleCard extends StatelessWidget {
   final WineBottle bottle;
@@ -89,25 +90,26 @@ Widget _buildBottleContent(BuildContext context) {
                   ),
                 ),
               ),
-            Positioned(
-              top: 8,
-              left: 8,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: WineTypeHelper.getTypeColor(bottle.type!),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+            if (bottle.type != null)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: WineTypeHelper.getTypeColor(bottle.type!),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -153,7 +155,7 @@ Widget _buildBottleContent(BuildContext context) {
               maxLines: 1,
               textAlign: TextAlign.center,
             ),
-            if (bottle.year != null)
+            if (bottle.year != null && bottle.type != null)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(

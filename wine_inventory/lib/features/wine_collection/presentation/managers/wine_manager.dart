@@ -327,13 +327,29 @@ class WineManager extends ChangeNotifier {
     }
   }
 
-  Future<void> removeDrunkWine(WineBottle wine) async {
+  Future<void> removeDrunkWine(WineBottle wine, {bool markAsDeleted = false}) async {
     try {
       _isLoading = true;
       notifyListeners();
       
+      if (markAsDeleted) {
+        // Update in Firestore
+        final snapshot = await repository.firestore
+            .collection('users')
+            .doc(repository.userId)
+            .collection('drunk_wines')
+            .where('dateDrunk', isEqualTo: wine.dateDrunk?.toIso8601String())
+            .get();
+
+        for (var doc in snapshot.docs) {
+          await doc.reference.update({'isDeleted': true});
+        }
+      } else {
+        // Completely remove from Firestore
+        await repository.removeDrunkWine(wine);
+      }
+      
       drunkWines.remove(wine);
-      await repository.removeDrunkWine(wine);
       await saveData();
       
     } finally {
@@ -403,6 +419,58 @@ class WineManager extends ChangeNotifier {
         _isGridLoading = false;
         notifyListeners();
       });
+    }
+  }
+
+  Future<void> restoreWine(WineBottle wine) async {
+    try {
+      _setGridLoading(true);
+      
+      // Find first empty slot in grid
+      int? targetRow;
+      int? targetCol;
+      
+      for (int i = 0; i < _grid.length; i++) {
+        for (int j = 0; j < _grid[i].length; j++) {
+          if (_grid[i][j].isEmpty) {
+            targetRow = i;
+            targetCol = j;
+            break;
+          }
+        }
+        if (targetRow != null) break;
+      }
+      
+      if (targetRow == null || targetCol == null) {
+        throw Exception('No empty slots available in grid');
+      }
+      
+      // Create restored wine with updated properties
+      final restoredWine = wine.copyWith(
+        isDrunk: false,
+        dateDrunk: null,
+        dateAdded: DateTime.now(),
+      );
+      
+      // Update grid
+      _grid[targetRow][targetCol] = restoredWine;
+      
+      // Remove from drunk wines
+      drunkWines.remove(wine);
+      
+      // Save changes
+      await Future.wait([
+        repository.saveWineGrid(_grid),
+        repository.saveDrunkWines(drunkWines)
+      ]);
+      
+      _updateStatistics();
+      
+    } catch (e) {
+      print('Error restoring wine: $e');
+      rethrow;
+    } finally {
+      _setGridLoading(false);
     }
   }
 
