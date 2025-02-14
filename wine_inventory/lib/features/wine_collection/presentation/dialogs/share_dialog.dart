@@ -26,14 +26,6 @@ class ShareDialog extends StatelessWidget {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.mail_outline),
-            title: const Text('Share via Email'),
-            onTap: () {
-              Navigator.pop(context);
-              ShareHelper.shareWineList(wineManager);
-            },
-          ),
-          ListTile(
             leading: const Icon(Icons.share),
             title: const Text('Share via Other Apps'),
             onTap: () {
