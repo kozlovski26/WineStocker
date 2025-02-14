@@ -302,10 +302,13 @@ class WineRepository {
           continue;
         }
 
+        final drunkDate = bottle.dateDrunk ?? DateTime.now();
         writeBatch.set(_drunkWines.doc(), {
           ...bottle.toJson(),
+          'isDrunk': true,
           'userId': userId,
-          'drunkAt': bottle.dateDrunk?.toIso8601String() ?? DateTime.now().toIso8601String(),
+          'dateDrunk': drunkDate.toIso8601String(),
+          'drunkAt': drunkDate.toIso8601String(),
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
@@ -323,10 +326,18 @@ class WineRepository {
           .orderBy('drunkAt', descending: true)
           .get();
 
-      return snapshot.docs
-          .map((doc) => WineBottle.fromJson(doc.data() as Map<String, dynamic>))
-          .where((bottle) => bottle.isDrunk && bottle.dateDrunk != null)
-          .toList();
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        // Ensure all required fields are present
+        if (data['isDrunk'] != true || data['dateDrunk'] == null) {
+          // Update document with missing fields if necessary
+          doc.reference.update({
+            'isDrunk': true,
+            'dateDrunk': data['drunkAt'] ?? DateTime.now().toIso8601String(),
+          });
+        }
+        return WineBottle.fromJson(data);
+      }).where((bottle) => bottle.name != null).toList();
     } catch (e) {
       print('Error loading drunk wines: $e');
       rethrow;
