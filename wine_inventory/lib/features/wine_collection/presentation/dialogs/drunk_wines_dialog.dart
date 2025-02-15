@@ -104,6 +104,16 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                                         ),
                                       ),
                                       const SizedBox(height: 4),
+                                      if (wine.winery != null) ...[
+                                        Text(
+                                          wine.winery!,
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                      ],
                                       if (wine.year != null) ...[
                                         Text(
                                           wine.year!,
@@ -114,47 +124,14 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                                         ),
                                         const SizedBox(height: 4),
                                       ],
-                                      if (wine.type != null) ...[
-                                        Text(
-                                          'Type: ${wine.type!.name}',
-                                          style: TextStyle(
-                                            color: Colors.grey[400],
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                      ],
-                                      if (wine.price != null) ...[
-                                        Text(
-                                          'Price: ${widget.wineManager.settings?.currency?.symbol ?? Currency.USD.symbol}${wine.price!.toStringAsFixed(2)}',
-                                          style: TextStyle(
-                                            color: Colors.grey[400],
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                      ],
                                       if (wine.dateDrunk != null)
                                         Text(
-                                          'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
+                                          DateFormat('MMMM d, y').format(wine.dateDrunk!),
                                           style: TextStyle(
                                             color: Colors.grey[400],
                                             fontSize: 14,
                                           ),
                                         ),
-                                      if (wine.notes?.isNotEmpty ?? false) ...[
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          wine.notes!,
-                                          style: TextStyle(
-                                            color: Colors.grey[400],
-                                            fontSize: 14,
-                                            fontStyle: FontStyle.italic,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
                                     ],
                                   ),
                                 ),
@@ -296,115 +273,13 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.grey[900],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (wine.imagePath != null) ...[
-                _buildWineImage(wine.imagePath!),
-                const SizedBox(height: 16),
-              ],
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      wine.name ?? 'Unnamed Wine',
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (wine.year != null) ...[
-                      Text(
-                        wine.year!,
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 18,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    if (wine.dateDrunk != null)
-                      Text(
-                        'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 16,
-                        ),
-                      ),
-                    const SizedBox(height: 24),
-                    if (wine.type != null)
-                      _buildDetailRow('Type', wine.type!.name),
-                    if (wine.price != null)
-                      _buildDetailRow(
-                        'Price', 
-                        '${widget.wineManager.settings?.currency?.symbol ?? Currency.USD.symbol}${wine.price!.toStringAsFixed(2)}'
-                      ),
-                    if (wine.notes != null && wine.notes!.isNotEmpty)
-                      _buildDetailRow('Notes', wine.notes!),
-                    const SizedBox(height: 32),
-                    FilledButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showGridSelectionDialog(context, wine);
-                      },
-                      icon: const Icon(Icons.copy),
-                      label: const Text('Create Copy in Collection'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey[500],
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ],
+      backgroundColor: Colors.transparent,
+      builder: (context) => WineDetailsDialog(
+        bottle: wine,
+        wineManager: widget.wineManager,
+        row: -1,
+        col: -1,
+        isDrunkWine: true,
       ),
     );
   }

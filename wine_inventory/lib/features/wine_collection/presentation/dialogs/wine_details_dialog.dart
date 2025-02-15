@@ -16,6 +16,7 @@ class WineDetailsDialog extends StatefulWidget {
   final WineManager wineManager;
   final int row;
   final int col;
+  final bool isDrunkWine;
 
   const WineDetailsDialog({
     super.key,
@@ -23,6 +24,7 @@ class WineDetailsDialog extends StatefulWidget {
     required this.wineManager,
     required this.row,
     required this.col,
+    this.isDrunkWine = false,
   });
 
   @override
@@ -61,48 +63,54 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.9,
-      minChildSize: 0.5,
-      maxChildSize: 0.9,
-      builder: (context, scrollController) => Stack(
-        children: [
-          Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(),
-                      _buildImageSection(),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildWineInfo(),
-                            const SizedBox(height: 24),
-                            _buildRatingAndFavorite(context),
-                            _buildNotesSection(),
-                            const SizedBox(height: 32),
-                          ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => Stack(
+          children: [
+            Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeader(),
+                        _buildImageSection(),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildWineInfo(),
+                              const SizedBox(height: 24),
+                              _buildRatingAndFavorite(context),
+                              _buildNotesSection(),
+                              const SizedBox(height: 32),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              _buildActionButtons(),
-            ],
-          ),
-          if (_isLoading)
-            Container(
-              color: Colors.black54,
-              child: const Center(child: CircularProgressIndicator()),
+                _buildActionButtons(),
+              ],
             ),
-        ],
+            if (_isLoading)
+              Container(
+                color: Colors.black54,
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -136,34 +144,47 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
               height: 400,
               width: double.infinity,
               child: _bottle.imagePath != null
-                  ? GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const WinePhotoScreen(),
-                          ),
-                        );
-                      },
-                      child: Hero(
-                        tag: 'wine_image_${_bottle.imagePath}',
-                        child: _bottle.imagePath!.startsWith('http')
-                            ? CachedNetworkImage(
-                                imageUrl: _bottle.imagePath!,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => _buildDefaultImage(),
-                                errorWidget: (context, url, error) => _buildDefaultImage(),
-                              )
-                            : Image.file(
-                                File(_bottle.imagePath!),
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => _buildDefaultImage(),
-                              ),
-                      ),
-                    )
+                  ? widget.isDrunkWine 
+                    ? (_bottle.imagePath!.startsWith('http')
+                        ? CachedNetworkImage(
+                            imageUrl: _bottle.imagePath!,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => _buildDefaultImage(),
+                            errorWidget: (context, url, error) => _buildDefaultImage(),
+                          )
+                        : Image.file(
+                            File(_bottle.imagePath!),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => _buildDefaultImage(),
+                          ))
+                    : GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const WinePhotoScreen(),
+                            ),
+                          );
+                        },
+                        child: Hero(
+                          tag: 'wine_image_${_bottle.imagePath}',
+                          child: _bottle.imagePath!.startsWith('http')
+                              ? CachedNetworkImage(
+                                  imageUrl: _bottle.imagePath!,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => _buildDefaultImage(),
+                                  errorWidget: (context, url, error) => _buildDefaultImage(),
+                                )
+                              : Image.file(
+                                  File(_bottle.imagePath!),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => _buildDefaultImage(),
+                                ),
+                        ),
+                      )
                   : _buildDefaultImage(),
             ),
-            if (_isEditing)
+            if (_isEditing && !widget.isDrunkWine)
               Positioned(
                 bottom: 16,
                 right: 16,
@@ -175,7 +196,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
               ),
           ],
         ),
-        if (!_isEditing)
+        if (!_isEditing && !widget.isDrunkWine)
           Padding(
             padding: const EdgeInsets.only(top: 4, right: 16, bottom: 4),
             child: Align(
@@ -312,62 +333,76 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
   }
 
   Widget _buildAdditionalInfo() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Year
-        if (_bottle.year != null || _isEditing)
-          Expanded(
-            child: _isEditing
-                ? WineYearPicker(
-                    selectedYear: _bottle.year,
-                    onYearSelected: (year) {
-                      setState(() => _bottle.year = year);
-                    },
-                  )
-                : _buildInfoColumn('YEAR', _bottle.year, Colors.red[300]!),
-          ),
+        Row(
+          children: [
+            // Year
+            if (_bottle.year != null || _isEditing)
+              Expanded(
+                child: _isEditing
+                    ? WineYearPicker(
+                        selectedYear: _bottle.year,
+                        onYearSelected: (year) {
+                          setState(() => _bottle.year = year);
+                        },
+                      )
+                    : _buildInfoColumn('YEAR', _bottle.year, Colors.red[300]!),
+              ),
 
-        // Price
-        Expanded(
-          child: _isEditing
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: TextField(
-                    controller: priceController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Price',
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      prefixText: '${widget.wineManager.settings.currency.symbol} ',
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[800]!),
+            // Price
+            Expanded(
+              child: _isEditing
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: TextField(
+                        controller: priceController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: 'Price',
+                          labelStyle: const TextStyle(color: Colors.white70),
+                          prefixText: '${widget.wineManager.settings.currency.symbol} ',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[800]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.red[400]!),
+                          ),
+                        ),
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.red[400]!),
-                      ),
+                    )
+                  : _buildInfoColumn(
+                      'PRICE',
+                      _bottle.price != null ? '${widget.wineManager.settings.currency.symbol}${_bottle.price!.toStringAsFixed(2)}' : null,
+                      Colors.green[300]!,
                     ),
-                  ),
-                )
-              : _buildInfoColumn(
-                  'PRICE',
-                  _bottle.price != null ? '${widget.wineManager.settings.currency.symbol}${_bottle.price!.toStringAsFixed(2)}' : null,
-                  Colors.green[300]!,
-                ),
-        ),
-
-        // Rating (always shown in display mode)
-        if (!_isEditing && _bottle.rating != null)
-          Expanded(
-            child: _buildInfoColumn(
-              'RATING',
-              '${_bottle.rating!.toStringAsFixed(1)} ★',
-              Colors.amber[300]!,
             ),
+
+            // Rating (always shown in display mode)
+            if (!_isEditing && _bottle.rating != null)
+              Expanded(
+                child: _buildInfoColumn(
+                  'RATING',
+                  '${_bottle.rating!.toStringAsFixed(1)} ★',
+                  Colors.amber[300]!,
+                ),
+              ),
+          ],
+        ),
+        // Add date drunk for drunk wines
+        if (widget.isDrunkWine && _bottle.dateDrunk != null) ...[
+          const SizedBox(height: 24),
+          _buildInfoColumn(
+            'DRUNK ON',
+            DateFormat('MMMM d, y').format(_bottle.dateDrunk!),
+            Colors.purple[300]!,
           ),
+        ],
       ],
     );
   }
@@ -447,6 +482,21 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
   }
 
   Widget _buildActionButtons() {
+    if (widget.isDrunkWine) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: FilledButton.icon(
+          onPressed: () => _showGridSelectionDialog(context),
+          icon: const Icon(Icons.restore),
+          label: const Text('Restore to Collection'),
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.green[700],
+            minimumSize: const Size(double.infinity, 48),
+          ),
+        ),
+      );
+    }
+
     if (!_isEditing) return const SizedBox.shrink();
     
     return Padding(
@@ -687,6 +737,147 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
         ),
       ),
     );
+  }
+
+  void _showGridSelectionDialog(BuildContext context) {
+    Navigator.pop(context); // Close details dialog
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return Dialog(
+            backgroundColor: Colors.grey[900],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Select Empty Slot',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.5,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(
+                            widget.wineManager.settings.rows,
+                            (row) => Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: List.generate(
+                                widget.wineManager.settings.columns,
+                                (col) {
+                                  final currentBottle = widget.wineManager.grid[row][col];
+                                  return Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: InkWell(
+                                      onTap: currentBottle.isEmpty 
+                                        ? () => _restoreToPosition(context, row, col)
+                                        : null,
+                                      child: Container(
+                                        width: 60,
+                                        height: 60,
+                                        decoration: BoxDecoration(
+                                          color: currentBottle.isEmpty 
+                                            ? Colors.green.withOpacity(0.2)
+                                            : Colors.red.withOpacity(0.2),
+                                          border: Border.all(
+                                            color: currentBottle.isEmpty 
+                                              ? Colors.green.withOpacity(0.5)
+                                              : Colors.red.withOpacity(0.5),
+                                            width: 1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          currentBottle.isEmpty 
+                                            ? Icons.add
+                                            : Icons.wine_bar,
+                                          color: currentBottle.isEmpty 
+                                            ? Colors.green[400]
+                                            : Colors.red[400],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  Future<void> _restoreToPosition(BuildContext context, int row, int col) async {
+    try {
+      // Create restored wine
+      final restoredWine = _bottle.copyWith(
+        isDrunk: false,
+        dateDrunk: null,
+        dateAdded: DateTime.now(),
+      );
+
+      // Update grid
+      await widget.wineManager.updateWine(restoredWine, row, col);
+
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${_bottle.name} copied to collection'),
+            backgroundColor: Colors.green[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error restoring wine: ${e.toString()}'),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
   }
 }
 
