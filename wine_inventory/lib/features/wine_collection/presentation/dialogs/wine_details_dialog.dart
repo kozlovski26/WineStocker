@@ -488,7 +488,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
         child: FilledButton.icon(
           onPressed: () => _showGridSelectionDialog(context),
           icon: const Icon(Icons.restore),
-          label: const Text('Restore to Collection'),
+          label: const Text('Got Another'),
           style: FilledButton.styleFrom(
             backgroundColor: Colors.green[700],
             minimumSize: const Size(double.infinity, 48),

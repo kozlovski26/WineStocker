@@ -136,14 +136,14 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                                   ),
                                 ),
                                 Tooltip(
-                                  message: 'Restore to Collection',
-                                  child: FilledButton.icon(
-                                    style: FilledButton.styleFrom(
+                                  message: 'Add another bottle to collection',
+                                  child: TextButton.icon(
+                                    style: TextButton.styleFrom(
                                       backgroundColor: Colors.green[700]?.withOpacity(0.2),
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                     ),
-                                    icon: const Icon(Icons.restore, size: 20),
-                                    label: const Text('Restore'),
+                                    icon: const Icon(Icons.add, size: 20),
+                                    label: const Text('Got Another'),
                                     onPressed: () => _showGridSelectionDialog(context, wine),
                                   ),
                                 ),
@@ -391,7 +391,7 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Select Empty Slot',
+                      'Select Grid Position',
                       style: GoogleFonts.playfairDisplay(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -403,6 +403,14 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tap an empty slot (green) to add this wine to your collection',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
