@@ -7,6 +7,7 @@ import '../../domain/models/wine_bottle.dart';
 import '../managers/wine_manager.dart';
 import '../../utils/wine_type_helper.dart';
 import './wine_details_dialog.dart';
+import '../../../../core/models/currency.dart';
 
 class DrunkWinesDialog extends StatefulWidget {
   final WineManager wineManager;
@@ -104,22 +105,70 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                                       ),
                                       const SizedBox(height: 4),
                                       if (wine.year != null) ...[
-                                        Text(wine.year!),
+                                        Text(
+                                          wine.year!,
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                            fontSize: 14,
+                                          ),
+                                        ),
                                         const SizedBox(height: 4),
                                       ],
-                                      Text(
-                                        'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
-                                        style: TextStyle(
-                                          color: Colors.grey[400],
-                                          fontSize: 14,
+                                      if (wine.type != null) ...[
+                                        Text(
+                                          'Type: ${wine.type!.name}',
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                            fontSize: 14,
+                                          ),
                                         ),
-                                      ),
+                                        const SizedBox(height: 4),
+                                      ],
+                                      if (wine.price != null) ...[
+                                        Text(
+                                          'Price: ${widget.wineManager.settings?.currency?.symbol ?? Currency.USD.symbol}${wine.price!.toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                      ],
+                                      if (wine.dateDrunk != null)
+                                        Text(
+                                          'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      if (wine.notes?.isNotEmpty ?? false) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          wine.notes!,
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                            fontSize: 14,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.copy),
-                                  onPressed: () => _showGridSelectionDialog(context, wine),
+                                Tooltip(
+                                  message: 'Restore to Collection',
+                                  child: FilledButton.icon(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Colors.green[700]?.withOpacity(0.2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    ),
+                                    icon: const Icon(Icons.restore, size: 20),
+                                    label: const Text('Restore'),
+                                    onPressed: () => _showGridSelectionDialog(context, wine),
+                                  ),
                                 ),
                               ],
                             ),
@@ -289,18 +338,22 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                       ),
                       const SizedBox(height: 8),
                     ],
-                    Text(
-                      'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 16,
+                    if (wine.dateDrunk != null)
+                      Text(
+                        'Drunk on: ${DateFormat('MMMM d, y').format(wine.dateDrunk!)}',
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 16,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 24),
                     if (wine.type != null)
                       _buildDetailRow('Type', wine.type!.name),
                     if (wine.price != null)
-                      _buildDetailRow('Price', '\$${wine.price!.toStringAsFixed(2)}'),
+                      _buildDetailRow(
+                        'Price', 
+                        '${widget.wineManager.settings?.currency?.symbol ?? Currency.USD.symbol}${wine.price!.toStringAsFixed(2)}'
+                      ),
                     if (wine.notes != null && wine.notes!.isNotEmpty)
                       _buildDetailRow('Notes', wine.notes!),
                     const SizedBox(height: 32),

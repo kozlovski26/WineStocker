@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wine_inventory/core/models/wine_type.dart';
+import 'package:wine_inventory/core/models/currency.dart';
 import 'package:wine_inventory/features/auth/presentation/providers/auth_provider.dart';
 import 'package:wine_inventory/features/wine_collection/data/repositories/wine_repository.dart';
 import 'package:wine_inventory/features/wine_collection/domain/models/wine_bottle.dart';
@@ -150,7 +151,7 @@ class WineGridScreenState extends State<WineGridScreen>
       BuildContext context, WineManager wineManager) {
     return AppBar(
       title: Text(
-        'MY WINES',
+        'WINE CELLAR',
         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -176,14 +177,33 @@ class WineGridScreenState extends State<WineGridScreen>
   }
 
   Widget _buildBottleCount(WineManager wineManager) {
+    final totalValue = wineManager.grid
+        .expand((row) => row)
+        .where((bottle) => !bottle.isEmpty)
+        .fold(0.0, (sum, bottle) => sum + (bottle.price ?? 0));
+
+    final currencySymbol = wineManager.settings?.currency?.symbol ?? Currency.USD.symbol;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 7),
-      child: Text(
-        '${wineManager.totalBottles} Bottles',
-        style: const TextStyle(
-          fontSize: 20,
-          color: Colors.white70,
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '${wineManager.totalBottles} Bottles',
+            style: const TextStyle(
+              fontSize: 20,
+              color: Colors.white70,
+            ),
+          ),
+          Text(
+            '$currencySymbol${totalValue.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 20,
+              color: Colors.white70,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -295,29 +315,37 @@ class WineGridScreenState extends State<WineGridScreen>
 
     final screenWidth = MediaQuery.of(context).size.width;
     const maxVisibleColumns = 4;
-    final cardWidth = wineManager.settings.columns <= maxVisibleColumns 
-        ? screenWidth / wineManager.settings.columns 
+    final settings = wineManager.settings;
+    if (settings == null) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    final columns = settings.columns;
+    final cardWidth = columns <= maxVisibleColumns 
+        ? screenWidth / columns 
         : screenWidth / maxVisibleColumns;
-    final cardAspectRatio = wineManager.settings.cardAspectRatio ?? 0.57;
+    final cardAspectRatio = settings.cardAspectRatio;
     
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SizedBox(
-        width: wineManager.settings.columns <= maxVisibleColumns 
+        width: columns <= maxVisibleColumns 
             ? screenWidth 
-            : cardWidth * wineManager.settings.columns,
+            : cardWidth * columns,
         child: GridView.builder(
           padding: const EdgeInsets.all(1),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: wineManager.settings.columns,
+            crossAxisCount: columns,
             childAspectRatio: cardAspectRatio,
             crossAxisSpacing: 1,
             mainAxisSpacing: 1,
           ),
-          itemCount: wineManager.settings.rows * wineManager.settings.columns,
+          itemCount: settings.rows * columns,
           itemBuilder: (context, index) {
-            final row = index ~/ wineManager.settings.columns;
-            final col = index % wineManager.settings.columns;
+            final row = index ~/ columns;
+            final col = index % columns;
             
             if (row >= wineManager.grid.length || 
                 col >= wineManager.grid[row].length) {
@@ -332,7 +360,7 @@ class WineGridScreenState extends State<WineGridScreen>
                 color: Colors.black12,
                 child: Center(
                   child: Icon(
-                    Icons.liquor_outlined,
+                    Icons.wine_bar_outlined,
                     color: Colors.grey[700],
                     size: 32,
                   ),
