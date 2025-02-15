@@ -339,7 +339,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
                     decoration: InputDecoration(
                       labelText: 'Price',
                       labelStyle: const TextStyle(color: Colors.white70),
-                      prefixText: '\₪ ',
+                      prefixText: '${widget.wineManager.settings.currency.symbol} ',
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -354,7 +354,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
                 )
               : _buildInfoColumn(
                   'PRICE',
-                  _bottle.price != null ? '\₪${_bottle.price!.toStringAsFixed(2)}' : null,
+                  _bottle.price != null ? '${widget.wineManager.settings.currency.symbol}${_bottle.price!.toStringAsFixed(2)}' : null,
                   Colors.green[300]!,
                 ),
         ),
@@ -503,7 +503,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
       // Parse price
       double? price;
       if (priceController.text.isNotEmpty) {
-        price = double.tryParse(priceController.text.replaceAll('\₪', '').trim());
+        price = double.tryParse(priceController.text.replaceAll(widget.wineManager.settings.currency.symbol, '').trim());
         if (price == null) throw Exception('Invalid price format');
       }
 

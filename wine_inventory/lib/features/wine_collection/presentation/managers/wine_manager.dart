@@ -6,6 +6,7 @@ import '../../domain/models/grid_settings.dart';
 import '../../data/repositories/wine_repository.dart';
 import 'package:wine_inventory/core/models/wine_type.dart';  // Fixed import path
 import '../dialogs/first_time_setup_dialog.dart';
+import 'package:wine_inventory/core/models/currency.dart'; 
 
 class Position {
   final int row;
@@ -468,6 +469,25 @@ class WineManager extends ChangeNotifier {
       
     } catch (e) {
       print('Error restoring wine: $e');
+      rethrow;
+    } finally {
+      _setGridLoading(false);
+    }
+  }
+
+  Future<void> updateCurrency(Currency currency) async {
+    try {
+      _setGridLoading(true);
+      
+      // Update local settings
+      settings = settings.copyWith(currency: currency);
+      
+      // Save to Firestore
+      await repository.saveGridSettings(settings);
+      
+      notifyListeners();
+    } catch (e) {
+      print('Error updating currency: $e');
       rethrow;
     } finally {
       _setGridLoading(false);

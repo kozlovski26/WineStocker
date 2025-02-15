@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../domain/models/wine_bottle.dart';
 import '../../domain/models/grid_settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:wine_inventory/core/models/currency.dart';
 
 class WineRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -360,7 +361,10 @@ class WineRepository {
   Future<void> saveGridSettings(GridSettings settings) async {
     try {
       await _userSettings.doc('grid').set({
-        ...settings.toJson(),
+        'rows': settings.rows,
+        'columns': settings.columns,
+        'cardAspectRatio': settings.cardAspectRatio,
+        'currency': settings.currency.index,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -372,13 +376,32 @@ class WineRepository {
   Future<GridSettings> loadGridSettings() async {
     try {
       final doc = await _userSettings.doc('grid').get();
-      if (doc.exists) {
-        return GridSettings.fromJson(doc.data() as Map<String, dynamic>);
+      
+      if (!doc.exists) {
+        // Create default settings if they don't exist
+        final defaultSettings = GridSettings.defaultSettings();
+        await _userSettings.doc('grid').set(defaultSettings.toJson());
+        return defaultSettings;
       }
-      return GridSettings.defaultSettings();
+
+      final data = doc.data() as Map<String, dynamic>;
+      
+      // Ensure currency is properly loaded from Firestore
+      final currencyIndex = data['currency'] as int?;
+      final currency = currencyIndex != null && currencyIndex < Currency.values.length
+          ? Currency.values[currencyIndex]
+          : Currency.USD;
+
+      return GridSettings(
+        rows: data['rows'] as int? ?? 8,
+        columns: data['columns'] as int? ?? 3,
+        cardAspectRatio: (data['cardAspectRatio'] as num?)?.toDouble() ?? 0.57,
+        currency: currency,
+      );
     } catch (e) {
       print('Error loading grid settings: $e');
-      rethrow;
+      // Return default settings if there's an error
+      return GridSettings.defaultSettings();
     }
   }
 
@@ -609,6 +632,19 @@ class WineRepository {
       }
     } catch (e) {
       print('Error toggling pro status: $e');
+      rethrow;
+    }
+  }
+
+  // Optional: Add a method to update just the currency setting
+  Future<void> updateCurrency(Currency currency) async {
+    try {
+      await _userSettings.doc('grid').update({
+        'currency': currency.index,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error updating currency: $e');
       rethrow;
     }
   }

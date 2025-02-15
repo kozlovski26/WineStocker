@@ -123,7 +123,7 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
               ),
               const SizedBox(height: 4),
               Text(
-                '$_totalBottles Bottles • ₪${_totalCollectionValue.toStringAsFixed(2)}',
+                '$_totalBottles Bottles • ${_settings?.currency.symbol}${_totalCollectionValue.toStringAsFixed(2)}',
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 14,
@@ -369,7 +369,7 @@ class _UserCollectionScreenState extends State<UserCollectionScreen>
                       if (bottle.price != null)
                         _buildDetailRow(
                           'Price',
-                          '₪${bottle.price!.toStringAsFixed(2)}',
+                          '${_settings?.currency.symbol}${bottle.price!.toStringAsFixed(2)}',
                         ),
                       if (bottle.notes?.isNotEmpty ?? false)
                         _buildDetailRow('Notes', bottle.notes!),

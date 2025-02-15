@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../domain/models/grid_settings.dart';
 import '../managers/wine_manager.dart';
 import '../../domain/models/wine_bottle.dart';
+import '../../../../core/models/currency.dart';
 
 class SettingsDialog extends StatefulWidget {
   final WineManager wineManager;
@@ -23,6 +24,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late double _aspectRatio;
   bool _isProcessing = false;
   bool _isPro = false;
+  Currency _selectedCurrency = Currency.USD;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -30,6 +33,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _rows = widget.wineManager.settings.rows;
     _columns = widget.wineManager.settings.columns;
     _aspectRatio = widget.wineManager.settings.cardAspectRatio ?? 0.57;
+    _selectedCurrency = widget.wineManager.settings.currency;
     _loadProStatus();
   }
 
@@ -108,6 +112,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         cardAspectRatio: await widget.wineManager.repository.isUserPro()
             ? _aspectRatio
             : widget.wineManager.settings.cardAspectRatio,
+        currency: _selectedCurrency,
       );
 
       if (gridSizeChanged) {
@@ -279,6 +284,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 ),
               ),
             ],
+            const SizedBox(height: 24),
+            _buildCurrencySelector(),
           ],
         ),
       ),
@@ -299,6 +306,67 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   ),
                 )
               : const Text('Save'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCurrencySelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Currency',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.black26,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<Currency>(
+              value: _selectedCurrency,
+              isExpanded: true,
+              dropdownColor: Colors.grey[900],
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              items: Currency.values.map((currency) {
+                return DropdownMenuItem(
+                  value: currency,
+                  child: Text(
+                    '${currency.symbol} ${currency.name}',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                );
+              }).toList(),
+              onChanged: (Currency? newValue) async {
+                if (newValue != null) {
+                  try {
+                    setState(() => _isLoading = true);
+                    await widget.wineManager.updateCurrency(newValue);
+                    setState(() {
+                      _selectedCurrency = newValue;
+                    });
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error updating currency: ${e.toString()}'),
+                        backgroundColor: Colors.red[400],
+                      ),
+                    );
+                  } finally {
+                    setState(() => _isLoading = false);
+                  }
+                }
+              },
+            ),
+          ),
         ),
       ],
     );
