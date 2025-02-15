@@ -54,18 +54,23 @@ class ShareHelper {
   static void _addGroupedBottlesToShare(
       StringBuffer shareText, Map<WineType?, List<WineBottle>> groupedBottles) {
     groupedBottles.forEach((type, typeBottles) {
-      shareText.writeln(
-          '${type}');
+      final typeName = type != null 
+          ? WineTypeHelper.getTypeName(type)
+          : 'Other';
+      
+      shareText.writeln('$typeName');
 
       typeBottles.sort((a, b) => (a.name ?? '').compareTo(b.name ?? ''));
 
       for (var bottle in typeBottles) {
         if (bottle.isFavorite) shareText.write('⭐ ');
-        shareText.write(bottle.name ?? 'Unnamed Wine');
+        shareText.write(bottle.name?.trim() ?? 'Unnamed Wine');
 
         final List<String> details = [];
-        if (bottle.year != null) details.add(bottle.year!);
-        if (bottle.rating != null) {
+        if (bottle.year?.toString().trim().isNotEmpty == true) {
+          details.add(bottle.year!);
+        }
+        if (bottle.rating != null && bottle.rating! > 0) {
           details.add('${bottle.rating!.toStringAsFixed(1)}★');
         }
 

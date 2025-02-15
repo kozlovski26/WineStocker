@@ -54,10 +54,25 @@ class WineBottleCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: const Center(
-        child: Icon(
-          Icons.add,
-          size: 32,
-          color: Colors.white54,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.wine_bar_outlined,
+              size: 32,
+              color: Colors.white24,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Add New Wine',
+              style: TextStyle(
+                color: Colors.white38,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
