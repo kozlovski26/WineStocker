@@ -95,7 +95,7 @@ class WineYearPicker extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 20,
                               color:
-                                  isSelected ? Colors.red[400] : Colors.white70,
+                                  isSelected ? Colors.teal[600] : Colors.white70,
                               fontWeight: isSelected
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -115,7 +115,7 @@ class WineYearPicker extends StatelessWidget {
                       Navigator.pop(context);
                     },
                     style: FilledButton.styleFrom(
-                      backgroundColor: Colors.red[400],
+                      backgroundColor: Colors.teal[600],
                     ),
                     child: const Text('Confirm'),
                   ),

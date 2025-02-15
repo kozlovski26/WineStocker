@@ -148,6 +148,7 @@ void initState() {
     return TextField(
       controller: nameController,
       style: const TextStyle(color: Colors.white),
+      cursorColor: Colors.teal[600],
       decoration: InputDecoration(
         labelText: 'Wine Name',
         labelStyle: const TextStyle(color: Colors.white70),
@@ -157,7 +158,7 @@ void initState() {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.red[400]!),
+          borderSide: const BorderSide(color: Colors.white),
         ),
       ),
     );
@@ -167,6 +168,7 @@ Widget _buildWineryField() {
     return TextField(
       controller: wineryController,
       style: const TextStyle(color: Colors.white),
+      cursorColor: Colors.teal[600],
       decoration: InputDecoration(
         labelText: 'Winery',
         labelStyle: const TextStyle(color: Colors.white70),
@@ -176,7 +178,7 @@ Widget _buildWineryField() {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.red[400]!),
+          borderSide: const BorderSide(color: Colors.white),
         ),
       ),
     );
@@ -212,6 +214,7 @@ Widget _buildWineryField() {
       controller: notesController,
       maxLines: 3,
       style: const TextStyle(color: Colors.white),
+      cursorColor: Colors.teal[600],
       decoration: InputDecoration(
         labelText: 'Tasting Notes',
         labelStyle: const TextStyle(color: Colors.white70),
@@ -221,7 +224,7 @@ Widget _buildWineryField() {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.red[400]!),
+          borderSide: const BorderSide(color: Colors.white),
         ),
       ),
     );
@@ -232,6 +235,7 @@ Widget _buildWineryField() {
       controller: priceController,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       style: const TextStyle(color: Colors.white),
+      cursorColor: Colors.teal[600],
       decoration: InputDecoration(
         labelText: 'Price',
         labelStyle: const TextStyle(color: Colors.white70),
@@ -242,7 +246,7 @@ Widget _buildWineryField() {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.red[400]!),
+          borderSide: const BorderSide(color: Colors.white),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -273,12 +277,12 @@ Widget _buildWineryField() {
         ),
         value: isForTrade,
         onChanged: (value) {
-          print('Changing isForTrade to: $value'); // Debug log
+          print('Changing isForTrade to: $value');
           setState(() {
             isForTrade = value;
           });
         },
-        activeColor: Colors.green,
+        activeColor: Colors.teal[400],
       ),
     );
   }
@@ -294,7 +298,7 @@ Widget _buildWineryField() {
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white24),
+                border: Border.all(color: Colors.teal[600]!),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -323,18 +327,20 @@ Widget _buildWineryField() {
             icon: Icon(
               hasPhoto ? Icons.check_circle : Icons.add_a_photo,
               size: 20,
-              color: hasPhoto ? Colors.green : Colors.white,
+              color: hasPhoto ? Colors.teal[600] : Colors.white,
             ),
             label: Text(
               hasPhoto ? 'Change Photo' : 'Add Photo',
               style: TextStyle(
                 fontSize: 16,
-                color: hasPhoto ? Colors.green : Colors.white,
+                color: hasPhoto ? Colors.teal[600] : Colors.white,
+                decoration: TextDecoration.none,
+                decorationColor: Colors.teal[600],
               ),
             ),
             style: OutlinedButton.styleFrom(
               side: BorderSide(
-                color: hasPhoto ? Colors.green : Colors.red[400]!,
+                color: hasPhoto ? Colors.teal[600]! : Colors.white24,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -381,7 +387,7 @@ Widget _buildWineryField() {
           style: TextStyle(fontSize: 18),
         ),
         style: FilledButton.styleFrom(
-          backgroundColor: Colors.red[400],
+          backgroundColor: Colors.teal[600],
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
           ),
@@ -514,7 +520,7 @@ Widget _buildWineryField() {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Wine updated successfully'),
-            backgroundColor: Colors.green[700],
+            backgroundColor: Colors.teal[700],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -528,7 +534,7 @@ Widget _buildWineryField() {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to save wine: ${e.toString()}'),
-            backgroundColor: Colors.red[400],
+            backgroundColor: Colors.teal[700],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -547,7 +553,7 @@ Widget _buildWineryField() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red[400],
+        backgroundColor: Colors.teal[700],
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
@@ -561,7 +567,7 @@ Widget _buildWineryField() {
       SnackBar(
         content: const Text(
             'Photo added successfully! All bottle photos will maintain the same proportions for consistency.'),
-        backgroundColor: Colors.green[700],
+        backgroundColor: Colors.teal[700],
         duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
