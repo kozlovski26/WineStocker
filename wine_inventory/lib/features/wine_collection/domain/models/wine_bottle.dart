@@ -5,6 +5,7 @@ class WineBottle {
   String? winery;
   String? year;
   String? notes;
+  String? country;
   DateTime? dateAdded;
   DateTime? dateDrunk;
   String? imagePath;
@@ -21,6 +22,7 @@ class WineBottle {
     this.winery,
     this.year,
     this.notes,
+    this.country,
     this.dateAdded,
     this.dateDrunk,
     this.imagePath,
@@ -35,11 +37,12 @@ class WineBottle {
 
   bool get isEmpty => name == null && imagePath == null;
 
- WineBottle copyWith({
+  WineBottle copyWith({
     String? name,
     String? winery,
     String? year,
     String? notes,
+    String? country,
     DateTime? dateAdded,
     DateTime? dateDrunk,
     String? imagePath,
@@ -56,6 +59,7 @@ class WineBottle {
       winery: winery ?? this.winery,
       year: year ?? this.year,
       notes: notes ?? this.notes,
+      country: country ?? this.country,
       dateAdded: dateAdded ?? this.dateAdded,
       dateDrunk: dateDrunk ?? this.dateDrunk,
       imagePath: imagePath ?? this.imagePath,
@@ -69,13 +73,13 @@ class WineBottle {
     );
   }
 
-factory WineBottle.fromJson(Map<String, dynamic> json) {
-
+  factory WineBottle.fromJson(Map<String, dynamic> json) {
     return WineBottle(
       name: json['name'],
       winery: json['winery'],
       year: json['year'],
       notes: json['notes'],
+      country: json['country'],
       dateAdded: json['dateAdded'] != null
           ? DateTime.parse(json['dateAdded'])
           : null,
@@ -100,6 +104,7 @@ factory WineBottle.fromJson(Map<String, dynamic> json) {
       'winery': winery,
       'year': year,
       'notes': notes,
+      'country': country,
       'dateAdded': dateAdded?.toIso8601String(),
       'dateDrunk': dateDrunk?.toIso8601String(),
       'imagePath': imagePath,

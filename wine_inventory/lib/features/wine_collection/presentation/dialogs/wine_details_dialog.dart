@@ -10,6 +10,8 @@ import 'package:intl/intl.dart';
 import 'package:wine_inventory/features/wine_collection/presentation/widgets/wine_type_selector.dart';
 import 'package:wine_inventory/features/wine_collection/presentation/widgets/wine_year_picker.dart';
 import 'package:wine_inventory/features/wine_collection/presentation/screens/wine_photo_screen.dart';
+import '../../../../core/models/wine_country.dart';
+import '../widgets/country_selector.dart';
 
 class WineDetailsDialog extends StatefulWidget {
   final WineBottle bottle;
@@ -298,6 +300,11 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
 
           const SizedBox(height: 12),
           
+          // Country
+          _buildCountrySection(),
+
+          const SizedBox(height: 12),
+          
           // Wine Type
           _buildTypeSelector(),
 
@@ -328,6 +335,46 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildCountryDisplay() {
+    if (_bottle.country == null || _bottle.country!.isEmpty) return const SizedBox.shrink();
+    return Row(
+      children: [
+        Text(
+          WineCountry.getFlagForCountry(_bottle.country) ?? '🍷',
+          style: const TextStyle(fontSize: 18),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            _bottle.country!,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCountrySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _isEditing
+            ? CountrySelector(
+                selectedCountry: _bottle.country,
+                onCountrySelected: (country) {
+                  setState(() => _bottle.country = country);
+                },
+              )
+            : _buildCountryDisplay(),
+        const SizedBox(height: 16),
       ],
     );
   }
@@ -566,6 +613,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
         imagePath: _bottle.imagePath,
         type: _bottle.type,
         year: _bottle.year,
+        country: _bottle.country,
       );
 
       // Save changes

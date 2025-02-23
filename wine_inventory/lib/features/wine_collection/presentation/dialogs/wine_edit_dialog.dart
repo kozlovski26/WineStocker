@@ -10,6 +10,7 @@ import '../../../../core/models/wine_type.dart';
 import '../../domain/models/wine_bottle.dart';
 import '../managers/wine_manager.dart';
 import '../widgets/wine_year_picker.dart';
+import '../widgets/country_selector.dart';
 
 class WineEditDialog extends StatefulWidget {
   final WineBottle bottle;
@@ -35,29 +36,30 @@ class WineEditDialogState extends State<WineEditDialog> {
   late TextEditingController nameController;
   late TextEditingController notesController;
   late TextEditingController priceController;
-  late TextEditingController wineryController; 
-
+  late TextEditingController wineryController;
+  String? selectedCountry;
   late String? selectedYear;
   late WineType? selectedType;
   late bool hasPhoto;
   bool _isLoading = false;
   bool isForTrade = false;
 
-@override
-void initState() {
-  super.initState();
-  print('Initial winery value: ${widget.bottle.winery}'); 
-  nameController = TextEditingController(text: widget.bottle.name);
-  wineryController = TextEditingController(text: widget.bottle.winery);
-  notesController = TextEditingController(text: widget.bottle.notes);
-  priceController = TextEditingController(
-    text: widget.bottle.price?.toStringAsFixed(2) ?? '',
-  );
-  selectedYear = widget.bottle.year;
-  selectedType = widget.bottle.type;
-  hasPhoto = widget.bottle.imagePath != null;
-  isForTrade = widget.bottle.isForTrade;
-}
+  @override
+  void initState() {
+    super.initState();
+    print('Initial winery value: ${widget.bottle.winery}'); 
+    nameController = TextEditingController(text: widget.bottle.name);
+    wineryController = TextEditingController(text: widget.bottle.winery);
+    notesController = TextEditingController(text: widget.bottle.notes);
+    priceController = TextEditingController(
+      text: widget.bottle.price?.toStringAsFixed(2) ?? '',
+    );
+    selectedYear = widget.bottle.year;
+    selectedType = widget.bottle.type;
+    selectedCountry = widget.bottle.country;
+    hasPhoto = widget.bottle.imagePath != null;
+    isForTrade = widget.bottle.isForTrade;
+  }
 
   @override
   void dispose() {
@@ -164,7 +166,7 @@ void initState() {
     );
   }
 
-Widget _buildWineryField() {
+  Widget _buildWineryField() {
     return TextField(
       controller: wineryController,
       style: const TextStyle(color: Colors.white),
@@ -181,6 +183,15 @@ Widget _buildWineryField() {
           borderSide: const BorderSide(color: Colors.white),
         ),
       ),
+    );
+  }
+
+  Widget _buildCountrySelector() {
+    return CountrySelector(
+      selectedCountry: selectedCountry,
+      onCountrySelected: (country) {
+        setState(() => selectedCountry = country);
+      },
     );
   }
 
@@ -408,6 +419,8 @@ Widget _buildWineryField() {
         const SizedBox(height: 16),
         _buildNameField(),
         const SizedBox(height: 16),
+        _buildCountrySelector(),
+        const SizedBox(height: 16),
         if (!hasPhoto || (hasPhoto && widget.bottle.imagePath != null))
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -472,7 +485,7 @@ Widget _buildWineryField() {
     return widget.bottle.imagePath;
   }
 
- Future<void> _saveWine() async {
+  Future<void> _saveWine() async {
     try {
       setState(() => _isLoading = true);
       
@@ -501,6 +514,7 @@ Widget _buildWineryField() {
         isForTrade: isForTrade,
         ownerId: userId,
         dateAdded: widget.isEdit ? widget.bottle.dateAdded : DateTime.now(),
+        country: selectedCountry,
       );
 
       // Update the wine in the manager
