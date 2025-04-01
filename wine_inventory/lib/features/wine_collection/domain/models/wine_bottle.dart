@@ -16,6 +16,7 @@ class WineBottle {
   bool isDrunk;
   String? ownerId; // Added owner ID for trading feature
   bool isForTrade; // Added trade status
+  Map<String, dynamic>? metadata; // Added metadata for storing additional information
 
   WineBottle({
     this.name,
@@ -33,7 +34,11 @@ class WineBottle {
     this.isDrunk = false,
     this.ownerId,
     this.isForTrade = false,
+    this.metadata,
   });
+
+  // Get currency code from metadata
+  String? get currency => metadata != null ? metadata!['currency'] as String? : null;
 
   bool get isEmpty => name == null && imagePath == null;
 
@@ -53,6 +58,7 @@ class WineBottle {
     bool? isDrunk,
     String? ownerId,
     bool? isForTrade,
+    Map<String, dynamic>? metadata,
   }) {
     return WineBottle(
       name: name ?? this.name,
@@ -70,6 +76,7 @@ class WineBottle {
       isDrunk: isDrunk ?? this.isDrunk,
       ownerId: ownerId ?? this.ownerId,
       isForTrade: isForTrade ?? this.isForTrade,
+      metadata: metadata ?? this.metadata,
     );
   }
 
@@ -93,7 +100,10 @@ class WineBottle {
       isFavorite: json['isFavorite'] ?? false,
       isDrunk: json['isDrunk'] ?? false,
       ownerId: json['ownerId'],
-      isForTrade: json['isForTrade'] == true, 
+      isForTrade: json['isForTrade'] == true,
+      metadata: json['metadata'] != null 
+          ? Map<String, dynamic>.from(json['metadata']) 
+          : null,
     );
   }
 
@@ -115,6 +125,7 @@ class WineBottle {
       'isDrunk': isDrunk,
       'ownerId': ownerId,
       'isForTrade': isForTrade,
+      'metadata': metadata,
     };
   }
 }

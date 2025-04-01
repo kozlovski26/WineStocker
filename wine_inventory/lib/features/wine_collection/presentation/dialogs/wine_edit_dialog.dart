@@ -18,6 +18,7 @@ class WineEditDialog extends StatefulWidget {
   final int row;
   final int col;
   final bool isEdit;
+  final File? tempImageFile;
 
   const WineEditDialog({
     super.key,
@@ -26,6 +27,7 @@ class WineEditDialog extends StatefulWidget {
     required this.row,
     required this.col,
     this.isEdit = false,
+    this.tempImageFile,
   });
 
   @override
@@ -242,6 +244,7 @@ class WineEditDialogState extends State<WineEditDialog> {
   }
 
   Widget _buildPriceField() {
+    final currency = widget.wineManager.settings.currency;
     return TextField(
       controller: priceController,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -250,7 +253,7 @@ class WineEditDialogState extends State<WineEditDialog> {
       decoration: InputDecoration(
         labelText: 'Price',
         labelStyle: const TextStyle(color: Colors.white70),
-        prefixText: '\₪ ',
+        prefixText: '${currency.symbol} ',
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[800]!),
@@ -492,13 +495,33 @@ class WineEditDialogState extends State<WineEditDialog> {
       // Parse price
       double? price;
       if (priceController.text.isNotEmpty) {
-        price = double.tryParse(priceController.text.replaceAll('\$', '').trim());
+        // Remove any currency symbols and extra spaces before parsing
+        final cleanedPrice = priceController.text
+            .replaceAll(RegExp(r'[^\d.,]'), '') // Remove all non-numeric characters except . and ,
+            .replaceAll(',', '.') // Replace comma with dot for decimal
+            .trim();
+            
+        price = double.tryParse(cleanedPrice);
         if (price == null) {
           throw Exception('Invalid price format');
         }
       }
 
       final userId = context.read<AuthProvider>().user?.id;
+      
+      // Handle image upload if we have a temp file
+      String? imagePath = widget.bottle.imagePath;
+      if (widget.tempImageFile != null) {
+        try {
+          final imageUrl = await widget.wineManager.repository.uploadWineImage(widget.tempImageFile!.path);
+          if (imageUrl != null) {
+            imagePath = imageUrl;
+          }
+        } catch (e) {
+          print('Error uploading image: $e');
+          // Continue with save even if image upload fails
+        }
+      }
 
       // Create updated bottle with all the new values
       final updatedBottle = WineBottle(
@@ -506,7 +529,7 @@ class WineEditDialogState extends State<WineEditDialog> {
         winery: wineryController.text,
         year: selectedYear,
         notes: notesController.text,
-        imagePath: widget.bottle.imagePath,
+        imagePath: imagePath,
         type: selectedType,
         rating: widget.bottle.rating,
         price: price,

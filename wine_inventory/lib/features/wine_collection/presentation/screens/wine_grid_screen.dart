@@ -5,6 +5,7 @@ import 'package:wine_inventory/features/auth/presentation/providers/auth_provide
 import 'package:wine_inventory/features/wine_collection/data/repositories/wine_repository.dart';
 import 'package:wine_inventory/features/wine_collection/domain/models/wine_bottle.dart';
 import 'package:wine_inventory/features/wine_collection/presentation/dialogs/drunk_wines_dialog.dart';
+import 'package:wine_inventory/features/wine_collection/presentation/screens/wine_scan_screen.dart';
 import '../managers/wine_manager.dart';
 import 'package:provider/provider.dart';
 import '../widgets/wine_bottle_card.dart';
@@ -16,6 +17,8 @@ import '../dialogs/share_dialog.dart';
 import 'browse_users_screen.dart';
 import 'package:wine_inventory/features/wine_collection/utils/wine_type_helper.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
+import 'dart:io';
+
 class WineGridScreen extends StatefulWidget {
   final String userId; // Add this line
 
@@ -157,6 +160,11 @@ class WineGridScreenState extends State<WineGridScreen>
             ),
       ),
       actions: [
+        IconButton(
+          icon: const Icon(Icons.camera_alt),
+          tooltip: 'Scan Wine',
+          onPressed: () => _navigateToScanScreen(context, wineManager),
+        ),
         IconButton(
           icon: const Icon(Icons.wine_bar),
           onPressed: () => _showDrunkWines(context, wineManager),
@@ -1123,5 +1131,102 @@ void _showBottleOptionsMenu(
         );
       },
     );
+  }
+
+  Future<void> _navigateToScanScreen(
+    BuildContext context, 
+    WineManager wineManager
+  ) async {
+    // Make sure we have the latest Pro status
+    await _checkProStatus();
+    
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MultiProvider(
+          providers: [
+            Provider.value(value: _repository),
+            ChangeNotifierProvider.value(value: wineManager),
+          ],
+          child: WineScanScreen(isPro: _isPro),
+        ),
+      ),
+    );
+    
+    if (result != null && result is Map) {
+      final WineBottle? wineBottle = result['wine'];
+      final File? imageFile = result['imageFile'];
+      
+      if (wineBottle != null && !wineBottle.isEmpty) {
+        // Show the add wine dialog with the pre-filled data from Gemini
+        _showEditDialogWithImage(context, wineManager, wineBottle, imageFile);
+      }
+    }
+  }
+  
+  Future<void> _showEditDialogWithImage(
+    BuildContext context, 
+    WineManager wineManager,
+    WineBottle prefilledBottle,
+    File? imageFile
+  ) async {
+    // Find an empty cell to add the wine
+    int row = 0;
+    int col = 0;
+    bool foundEmptyCell = false;
+    
+    for (int i = 0; i < wineManager.grid.length; i++) {
+      for (int j = 0; j < wineManager.grid[i].length; j++) {
+        if (wineManager.grid[i][j].isEmpty) {
+          row = i;
+          col = j;
+          foundEmptyCell = true;
+          break;
+        }
+      }
+      if (foundEmptyCell) break;
+    }
+    
+    if (!foundEmptyCell) {
+      // No empty cell found, show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No empty cells available in your collection!')),
+        );
+      }
+      return;
+    }
+    
+    // If we have an image file, set a temporary path for display
+    WineBottle bottleToEdit = prefilledBottle;
+    if (imageFile != null) {
+      bottleToEdit = bottleToEdit.copyWith(
+        imagePath: imageFile.path,  // Temporary path for display
+      );
+    }
+    
+    if (mounted) {
+      await showDialog(
+        context: context,
+        builder: (context) => WineEditDialog(
+          bottle: bottleToEdit,
+          wineManager: wineManager,
+          row: row,
+          col: col,
+          isEdit: false,
+          // We'll pass the temp image file so it can be uploaded when saved
+          tempImageFile: imageFile,
+        ),
+      );
+    }
+  }
+  
+  // Keep the original method for backward compatibility
+  Future<void> _showEditDialog(
+    BuildContext context, 
+    WineManager wineManager,
+    WineBottle prefilledBottle
+  ) async {
+    _showEditDialogWithImage(context, wineManager, prefilledBottle, null);
   }
 }
