@@ -5,7 +5,9 @@ import 'package:wine_inventory/features/auth/presentation/providers/auth_provide
 import 'package:wine_inventory/features/wine_collection/data/repositories/wine_repository.dart';
 import 'package:wine_inventory/features/wine_collection/domain/models/wine_bottle.dart';
 import 'package:wine_inventory/features/wine_collection/presentation/dialogs/drunk_wines_dialog.dart';
+import 'package:wine_inventory/features/wine_collection/presentation/screens/wine_photo_screen.dart';
 import 'package:wine_inventory/features/wine_collection/presentation/screens/wine_scan_screen.dart';
+import 'package:wine_inventory/features/wine_collection/services/gemini_service.dart';
 import '../managers/wine_manager.dart';
 import 'package:provider/provider.dart';
 import '../widgets/wine_bottle_card.dart';
@@ -161,8 +163,8 @@ class WineGridScreenState extends State<WineGridScreen>
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.camera_alt),
-          tooltip: 'Scan Wine',
+          icon: const Icon(Icons.auto_awesome),
+          tooltip: 'AI Wine Scan',
           onPressed: () => _navigateToScanScreen(context, wineManager),
         ),
         IconButton(
@@ -464,6 +466,255 @@ class WineGridScreenState extends State<WineGridScreen>
     int col, {
     bool isEdit = false,
   }) {
+    if (isEdit) {
+      // If editing existing wine, show the edit dialog directly
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.black,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        builder: (context) => WineEditDialog(
+          bottle: wineManager.grid[row][col],
+          wineManager: wineManager,
+          row: row,
+          col: col,
+          isEdit: isEdit,
+        ),
+      );
+    } else {
+      // For new wine, start with photo capture
+      _startWinePhotoCapture(context, wineManager, row, col);
+    }
+  }
+
+  Future<void> _startWinePhotoCapture(
+    BuildContext context,
+    WineManager wineManager,
+    int row,
+    int col,
+  ) async {
+    try {
+      // Navigate to WinePhotoScreen to take or select a photo
+      final photoPath = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(builder: (context) => const WinePhotoScreen()),
+      );
+      
+      // If user canceled or something went wrong
+      if (photoPath == null || !mounted) return;
+      
+      // Show loading indicator with appropriate message based on Pro status
+      _showLoadingDialog(
+        context, 
+        _isPro 
+          ? 'Analyzing wine image with premium AI model...'
+          : 'Analyzing wine image...',
+        isPro: _isPro,
+      );
+      
+      // Process the image with Gemini
+      final File imageFile = File(photoPath);
+      
+      // Get the API key - using a constant for easier maintenance
+      const String geminiApiKey = 'AIzaSyDjrSPjrVEjf5zuLfGlMHn3Ysda8lLz1kQ';
+      
+      // Create GeminiService and analyze image with model based on Pro status
+      final geminiService = GeminiService(
+        apiKey: geminiApiKey,
+        modelName: _isPro ? 'gemini-1.5-pro' : 'gemini-pro', // Use premium model for Pro users only
+      );
+      
+      try {
+        final analyzedWine = await geminiService.analyzeWineImage(imageFile);
+        
+        // Close loading dialog
+        if (mounted) Navigator.of(context).pop();
+        
+        if (analyzedWine == null) {
+          // Analysis failed, show the empty edit dialog
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  _isPro
+                    ? 'Could not fully analyze this wine label. Please fill in missing details.'
+                    : 'Limited analysis completed. Consider upgrading to Pro for better results.',
+                ),
+                backgroundColor: Colors.orange[700],
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 4),
+                action: SnackBarAction(
+                  label: _isPro ? 'OK' : 'Pro Info',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    if (!_isPro) {
+                      // Show Pro features info dialog
+                      _showProFeaturesDialog(context);
+                    }
+                  },
+                ),
+              ),
+            );
+            
+            _showEmptyWineEditDialog(context, wineManager, row, col, imageFile);
+          }
+        } else {
+          // Analysis succeeded, show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  _isPro
+                    ? 'Wine label analyzed with premium AI! Please verify details.'
+                    : 'Wine label analyzed! Please review and complete any missing details.',
+                ),
+                backgroundColor: Colors.green[700],
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          
+          // Show edit dialog with pre-filled data
+          _showWineEditDialogWithData(context, wineManager, row, col, analyzedWine, imageFile);
+        }
+      } catch (e) {
+        // Close loading dialog
+        if (mounted) Navigator.of(context).pop();
+        
+        // Show error and continue with empty edit dialog
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error analyzing wine: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          
+          _showEmptyWineEditDialog(context, wineManager, row, col, imageFile);
+        }
+      }
+    } catch (e) {
+      // Handle any errors in photo capture process
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error capturing photo: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  void _showLoadingDialog(BuildContext context, String message, {bool isPro = false}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.black87,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Show special Pro indicator for Pro users
+              if (isPro)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.tealAccent, width: 1)
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.auto_awesome, size: 14, color: Colors.tealAccent),
+                      SizedBox(width: 6),
+                      Text(
+                        'PREMIUM MODEL',
+                        style: TextStyle(
+                          color: Colors.tealAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  isPro ? Colors.tealAccent : Colors.white,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                message,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                isPro 
+                ? 'Our advanced AI model is analyzing your wine label with enhanced accuracy to extract detailed information including name, winery, year, grape varieties, and region classification.'
+                : 'Our AI is examining the wine label to identify details such as name, winery, year, and type.',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.white70,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              // Add Pro tip for Pro users
+              if (isPro) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black45,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline, color: Colors.amber, size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Pro Tip: Premium model can recognize more wine regions and specialized appellations',
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+  
+  void _showEmptyWineEditDialog(
+    BuildContext context,
+    WineManager wineManager,
+    int row,
+    int col,
+    File imageFile,
+  ) {
+    if (!mounted) return;
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -472,11 +723,47 @@ class WineGridScreenState extends State<WineGridScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       builder: (context) => WineEditDialog(
-        bottle: wineManager.grid[row][col],
+        bottle: WineBottle(
+          imagePath: imageFile.path, // Just set the image path
+        ),
         wineManager: wineManager,
         row: row,
         col: col,
-        isEdit: isEdit,
+        isEdit: false,
+        tempImageFile: imageFile,
+      ),
+    );
+  }
+  
+  void _showWineEditDialogWithData(
+    BuildContext context,
+    WineManager wineManager,
+    int row,
+    int col,
+    WineBottle analyzedWine,
+    File imageFile,
+  ) {
+    if (!mounted) return;
+    
+    // Update the analyzed wine with the image path
+    final bottleToEdit = analyzedWine.copyWith(
+      imagePath: imageFile.path,
+    );
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (context) => WineEditDialog(
+        bottle: bottleToEdit,
+        wineManager: wineManager,
+        row: row,
+        col: col,
+        isEdit: false,
+        tempImageFile: imageFile,
       ),
     );
   }
@@ -722,7 +1009,7 @@ void _showBottleOptionsMenu(
                     enabled: !isProcessing,
                     onTap: () {
                       Navigator.pop(context);
-                      _showWineEditDialog(context, wineManager, row, col);
+                      _startWinePhotoCapture(context, wineManager, row, col);
                     },
                   ),
                 ],

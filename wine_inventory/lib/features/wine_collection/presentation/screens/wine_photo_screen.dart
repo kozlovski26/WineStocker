@@ -69,6 +69,11 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
                 child: CameraPreview(_controller!),
               ),
             ),
+          // Add capture frame guide
+          if (_isInitialized && _controller != null)
+            Center(
+              child: _buildCaptureFrameGuide(),
+            ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -76,6 +81,10 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _buildHeader(),
+                  
+                  // Add instructional overlay
+                  _buildInstructionalOverlay(),
+                  
                   const Spacer(),
                   _buildBottomControls(),
                 ],
@@ -130,6 +139,74 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
           onPressed: _toggleFlash,
         ),
       ],
+    );
+  }
+
+  Widget _buildInstructionalOverlay() {
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.info_outline, 
+                color: Colors.tealAccent,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Wine AI Analysis',
+                style: TextStyle(
+                  color: Colors.tealAccent.shade100,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '1. Take a clear photo of the wine label',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '2. AI will analyze the image and extract details',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '3. Review and save the wine to your collection',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'For best results, ensure the label is well-lit and visible',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -304,4 +381,132 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
       return null;
     }
   }
+
+  Widget _buildCaptureFrameGuide() {
+    final size = MediaQuery.of(context).size;
+    final width = size.width * 0.8;
+    final height = width * 1.5; // 3:4.5 aspect ratio for wine label
+    
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Colors.tealAccent.withOpacity(0.7),
+          width: 2,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Stack(
+        children: [
+          // Corner marks
+          Positioned(
+            top: 0,
+            left: 0,
+            child: _buildCornerMark(isTopLeft: true),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: _buildCornerMark(isTopRight: true),
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            child: _buildCornerMark(isBottomLeft: true),
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: _buildCornerMark(isBottomRight: true),
+          ),
+          
+          // Center text
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Text(
+                  'Position wine label here',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildCornerMark({
+    bool isTopLeft = false,
+    bool isTopRight = false,
+    bool isBottomLeft = false,
+    bool isBottomRight = false,
+  }) {
+    return SizedBox(
+      width: 20,
+      height: 20,
+      child: CustomPaint(
+        painter: CornerMarkPainter(
+          isTopLeft: isTopLeft,
+          isTopRight: isTopRight,
+          isBottomLeft: isBottomLeft,
+          isBottomRight: isBottomRight,
+        ),
+      ),
+    );
+  }
+}
+
+class CornerMarkPainter extends CustomPainter {
+  final bool isTopLeft;
+  final bool isTopRight;
+  final bool isBottomLeft;
+  final bool isBottomRight;
+  
+  CornerMarkPainter({
+    this.isTopLeft = false,
+    this.isTopRight = false,
+    this.isBottomLeft = false,
+    this.isBottomRight = false,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.tealAccent.withOpacity(0.9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    
+    final length = size.width * 0.8;
+    
+    if (isTopLeft) {
+      canvas.drawLine(Offset.zero, Offset(length, 0), paint);
+      canvas.drawLine(Offset.zero, Offset(0, length), paint);
+    } else if (isTopRight) {
+      canvas.drawLine(Offset(size.width, 0), Offset(size.width - length, 0), paint);
+      canvas.drawLine(Offset(size.width, 0), Offset(size.width, length), paint);
+    } else if (isBottomLeft) {
+      canvas.drawLine(Offset(0, size.height), Offset(length, size.height), paint);
+      canvas.drawLine(Offset(0, size.height), Offset(0, size.height - length), paint);
+    } else if (isBottomRight) {
+      canvas.drawLine(Offset(size.width, size.height), Offset(size.width - length, size.height), paint);
+      canvas.drawLine(Offset(size.width, size.height), Offset(size.width, size.height - length), paint);
+    }
+  }
+  
+  @override
+  bool shouldRepaint(CornerMarkPainter oldDelegate) => false;
 }
