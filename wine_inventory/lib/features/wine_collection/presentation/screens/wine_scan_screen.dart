@@ -29,14 +29,13 @@ class _WineScanScreenState extends State<WineScanScreen> {
   String? _errorMessage;
   final _apiKeyController = TextEditingController();
   bool _showApiKey = false;
-  String _selectedModel = 'gemini-1.5-pro'; // Default model
+  final String _selectedModel = 'gemini-2.0-flash'; // Always use the flash model - no user selection
   bool _isUserPro = false; // Track the Pro status locally
 
   @override
   void initState() {
     super.initState();
     _loadApiKey();
-    _loadModelPreference();
     _checkProStatus(); // Check pro status on init
   }
 
@@ -76,13 +75,6 @@ class _WineScanScreenState extends State<WineScanScreen> {
         _apiKeyController.text = apiKey;
       });
     }
-  }
-
-  Future<void> _loadModelPreference() async {
-    final modelName = await _settingsService.getGeminiModel();
-    setState(() {
-      _selectedModel = modelName;
-    });
   }
 
   Future<void> _takePicture() async {
@@ -204,14 +196,6 @@ class _WineScanScreenState extends State<WineScanScreen> {
     }
   }
 
-  // Save the selected model preference
-  Future<void> _saveModelPreference(String modelName) async {
-    await _settingsService.saveGeminiModel(modelName);
-    setState(() {
-      _selectedModel = modelName;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -230,9 +214,6 @@ class _WineScanScreenState extends State<WineScanScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Pro feature toggle section - more compact
-              if (_isUserPro) _buildModelSelector(),
-              
               // Main content
               if (_imageFile == null) 
                 _buildImageSection()
@@ -263,82 +244,6 @@ class _WineScanScreenState extends State<WineScanScreen> {
     );
   }
 
-  Widget _buildModelSelector() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.black12,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade800, width: 0.5),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.auto_awesome,
-            size: 16,
-            color: Colors.amber,
-          ),
-          const SizedBox(width: 6),
-          const Text(
-            'AI Model:',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const Spacer(),
-          // Pro side with padding
-          Container(
-            padding: const EdgeInsets.only(right: 4),
-            child: Text(
-              'Pro',
-              style: TextStyle(
-                fontSize: 12,
-                color: _selectedModel == 'gemini-1.5-pro' 
-                    ? Colors.teal.shade300 
-                    : Colors.grey.shade400,
-                fontWeight: _selectedModel == 'gemini-1.5-pro'
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
-          ),
-          // Switch with padding
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            width: 50, // Fixed width for the switch
-            child: Switch(
-              value: _selectedModel == 'gemini-2.0-flash',
-              onChanged: (value) {
-                final newModel = value ? 'gemini-2.0-flash' : 'gemini-1.5-pro';
-                _saveModelPreference(newModel);
-              },
-              activeColor: Colors.teal.shade300,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-          // Flash side with padding
-          Container(
-            padding: const EdgeInsets.only(left: 4),
-            child: Text(
-              'Flash',
-              style: TextStyle(
-                fontSize: 12,
-                color: _selectedModel == 'gemini-2.0-flash' 
-                    ? Colors.teal.shade300 
-                    : Colors.grey.shade400,
-                fontWeight: _selectedModel == 'gemini-2.0-flash'
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  
   Widget _buildImageSection() {
     if (_imageFile != null) {
       return Container(
@@ -465,20 +370,6 @@ class _WineScanScreenState extends State<WineScanScreen> {
               ),
             ],
           ),
-          if (_isUserPro)
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: Text(
-                _selectedModel == 'gemini-1.5-pro' 
-                    ? '• Using Gemini 1.5 Pro: Better with details'
-                    : '• Using Gemini 2.0 Flash: Faster analysis',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade400,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ),
         ],
       );
     }
@@ -521,7 +412,7 @@ class _WineScanScreenState extends State<WineScanScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Analyzing with ${_selectedModel == 'gemini-1.5-pro' ? 'Gemini 1.5 Pro' : 'Gemini 2.0 Flash'}...',
+            'Analyzing with Gemini 2.0 Flash...',
             style: const TextStyle(fontSize: 14),
           ),
         ],
@@ -575,25 +466,6 @@ class _WineScanScreenState extends State<WineScanScreen> {
                   ),
                 ),
                 const Spacer(),
-                if (_isUserPro)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.grey.shade700, width: 0.5),
-                    ),
-                    child: Text(
-                      _selectedModel == 'gemini-1.5-pro' ? 'Pro' : 'Flash',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        color: _selectedModel == 'gemini-1.5-pro' 
-                            ? Colors.teal.shade300 
-                            : Colors.amber.shade300,
-                      ),
-                    ),
-                  ),
               ],
             ),
             const Divider(),

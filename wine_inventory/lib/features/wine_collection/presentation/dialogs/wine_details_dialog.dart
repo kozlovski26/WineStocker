@@ -164,7 +164,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const WinePhotoScreen(),
+                              builder: (context) => const WinePhotoScreen(isPro: false),
                             ),
                           );
                         },
@@ -743,7 +743,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
     final imagePath = await Navigator.push<String>(
       context,
       MaterialPageRoute(
-        builder: (context) => const WinePhotoScreen(),
+        builder: (context) => const WinePhotoScreen(isPro: false),
       ),
     );
 

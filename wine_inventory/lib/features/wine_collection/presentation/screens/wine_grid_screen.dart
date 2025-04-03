@@ -162,11 +162,12 @@ class WineGridScreenState extends State<WineGridScreen>
             ),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.auto_awesome),
-          tooltip: 'AI Wine Scan',
-          onPressed: () => _navigateToScanScreen(context, wineManager),
-        ),
+        if (_isPro)  // Only show AI Wine Scan button for Pro users
+          IconButton(
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: 'AI Wine Scan',
+            onPressed: () => _navigateToScanScreen(context, wineManager),
+          ),
         IconButton(
           icon: const Icon(Icons.wine_bar),
           onPressed: () => _showDrunkWines(context, wineManager),
@@ -499,102 +500,94 @@ class WineGridScreenState extends State<WineGridScreen>
       // Navigate to WinePhotoScreen to take or select a photo
       final photoPath = await Navigator.push<String>(
         context,
-        MaterialPageRoute(builder: (context) => const WinePhotoScreen()),
+        MaterialPageRoute(builder: (context) => WinePhotoScreen(isPro: _isPro)),
       );
       
       // If user canceled or something went wrong
       if (photoPath == null || !mounted) return;
       
-      // Show loading indicator with appropriate message based on Pro status
-      _showLoadingDialog(
-        context, 
-        _isPro 
-          ? 'Analyzing wine image with premium AI model...'
-          : 'Analyzing wine image...',
-        isPro: _isPro,
-      );
-      
-      // Process the image with Gemini
+      // Process the image
       final File imageFile = File(photoPath);
       
-      // Get the API key - using a constant for easier maintenance
-      const String geminiApiKey = 'AIzaSyDjrSPjrVEjf5zuLfGlMHn3Ysda8lLz1kQ';
-      
-      // Create GeminiService and analyze image with model based on Pro status
-      final geminiService = GeminiService(
-        apiKey: geminiApiKey,
-        modelName: _isPro ? 'gemini-1.5-pro' : 'gemini-pro', // Use premium model for Pro users only
-      );
-      
-      try {
-        final analyzedWine = await geminiService.analyzeWineImage(imageFile);
+      // Check if user is Pro
+      if (_isPro) {
+        // Only Pro users get AI analysis
+        // Show loading indicator for Pro users
+        _showLoadingDialog(context, 'Analyzing wine image...');
         
-        // Close loading dialog
-        if (mounted) Navigator.of(context).pop();
+        // Get the API key - using a constant for easier maintenance
+        const String geminiApiKey = 'AIzaSyDjrSPjrVEjf5zuLfGlMHn3Ysda8lLz1kQ';
         
-        if (analyzedWine == null) {
-          // Analysis failed, show the empty edit dialog
+        // Create GeminiService and analyze image with appropriate model selection
+        final geminiService = GeminiService(
+          apiKey: geminiApiKey,
+          modelName: 'gemini-2.0-flash', // Always use gemini-2.0-flash model
+        );
+        
+        try {
+          final analyzedWine = await geminiService.analyzeWineImage(imageFile);
+          
+          // Close loading dialog
+          if (mounted) Navigator.of(context).pop();
+          
+          if (analyzedWine == null) {
+            // Analysis failed, show the empty edit dialog
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text(
+                    'Could not fully analyze the wine label. Please fill in any missing details.',
+                  ),
+                  backgroundColor: Colors.orange[700],
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 4),
+                  action: SnackBarAction(
+                    label: 'OK',
+                    textColor: Colors.white,
+                    onPressed: () {},
+                  ),
+                ),
+              );
+              
+              _showEmptyWineEditDialog(context, wineManager, row, col, imageFile);
+            }
+          } else {
+            // Analysis succeeded, show success message
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text(
+                    'Wine label analyzed successfully! Please verify and adjust details if needed.',
+                  ),
+                  backgroundColor: Colors.green[700],
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            }
+            
+            // Show edit dialog with pre-filled data
+            _showWineEditDialogWithData(context, wineManager, row, col, analyzedWine, imageFile);
+          }
+        } catch (e) {
+          // Close loading dialog
+          if (mounted) Navigator.of(context).pop();
+          
+          // Show error and continue with empty edit dialog
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(
-                  _isPro
-                    ? 'Could not fully analyze this wine label. Please fill in missing details.'
-                    : 'Limited analysis completed. Consider upgrading to Pro for better results.',
-                ),
-                backgroundColor: Colors.orange[700],
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 4),
-                action: SnackBarAction(
-                  label: _isPro ? 'OK' : 'Pro Info',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    if (!_isPro) {
-                      // Show Pro features info dialog
-                      _showProFeaturesDialog(context);
-                    }
-                  },
-                ),
+                content: Text('Error analyzing wine: ${e.toString()}'),
+                backgroundColor: Colors.red,
               ),
             );
             
             _showEmptyWineEditDialog(context, wineManager, row, col, imageFile);
           }
-        } else {
-          // Analysis succeeded, show success message
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  _isPro
-                    ? 'Wine label analyzed with premium AI! Please verify details.'
-                    : 'Wine label analyzed! Please review and complete any missing details.',
-                ),
-                backgroundColor: Colors.green[700],
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
-          
-          // Show edit dialog with pre-filled data
-          _showWineEditDialogWithData(context, wineManager, row, col, analyzedWine, imageFile);
         }
-      } catch (e) {
-        // Close loading dialog
-        if (mounted) Navigator.of(context).pop();
-        
-        // Show error and continue with empty edit dialog
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error analyzing wine: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          
-          _showEmptyWineEditDialog(context, wineManager, row, col, imageFile);
-        }
+      } else {
+        // Non-Pro users skip AI analysis and go directly to manual entry
+        _showEmptyWineEditDialog(context, wineManager, row, col, imageFile);
       }
     } catch (e) {
       // Handle any errors in photo capture process
@@ -609,7 +602,7 @@ class WineGridScreenState extends State<WineGridScreen>
     }
   }
   
-  void _showLoadingDialog(BuildContext context, String message, {bool isPro = false}) {
+  void _showLoadingDialog(BuildContext context, String message) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -619,37 +612,8 @@ class WineGridScreenState extends State<WineGridScreen>
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Show special Pro indicator for Pro users
-              if (isPro)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.tealAccent, width: 1)
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.auto_awesome, size: 14, color: Colors.tealAccent),
-                      SizedBox(width: 6),
-                      Text(
-                        'PREMIUM MODEL',
-                        style: TextStyle(
-                          color: Colors.tealAccent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  isPro ? Colors.tealAccent : Colors.white,
-                ),
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.tealAccent),
               ),
               const SizedBox(height: 20),
               Text(
@@ -661,44 +625,14 @@ class WineGridScreenState extends State<WineGridScreen>
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
-              Text(
-                isPro 
-                ? 'Our advanced AI model is analyzing your wine label with enhanced accuracy to extract detailed information including name, winery, year, grape varieties, and region classification.'
-                : 'Our AI is examining the wine label to identify details such as name, winery, year, and type.',
-                style: const TextStyle(
+              const Text(
+                'Our AI is examining the wine label to identify details such as name, winery, year, and type.',
+                style: TextStyle(
                   fontSize: 14,
                   color: Colors.white70,
                 ),
                 textAlign: TextAlign.center,
               ),
-              
-              // Add Pro tip for Pro users
-              if (isPro) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black45,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.lightbulb_outline, color: Colors.amber, size: 16),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Pro Tip: Premium model can recognize more wine regions and specialized appellations',
-                          style: TextStyle(
-                            color: Colors.amber,
-                            fontSize: 12,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
         );

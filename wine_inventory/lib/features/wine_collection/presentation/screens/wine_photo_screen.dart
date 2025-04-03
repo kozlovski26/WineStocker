@@ -5,7 +5,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 
 class WinePhotoScreen extends StatefulWidget {
-  const WinePhotoScreen({super.key});
+  final bool isPro;
+
+  const WinePhotoScreen({
+    super.key,
+    this.isPro = false,
+  });
 
   @override
   WinePhotoScreenState createState() => WinePhotoScreenState();
@@ -163,27 +168,49 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Wine AI Analysis',
+                widget.isPro ? 'Wine AI Analysis' : 'Wine Photo Capture',
                 style: TextStyle(
                   color: Colors.tealAccent.shade100,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (widget.isPro)
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.tealAccent.withOpacity(0.3)),
+                  ),
+                  child: const Text(
+                    'PRO',
+                    style: TextStyle(
+                      color: Colors.tealAccent,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            '1. Take a clear photo of the wine label',
-            style: TextStyle(
+          Text(
+            widget.isPro
+                ? '1. Take a clear photo or upload a photo of the wine label'
+                : '1. Take a clear photo of the wine bottle label or upload a photo',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
-            '2. AI will analyze the image and extract details',
-            style: TextStyle(
+          Text(
+            widget.isPro
+                ? '2. AI will analyze the image and extract details'
+                : '2. Enter the wine details manually in the next screen',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
             ),
@@ -197,9 +224,41 @@ class WinePhotoScreenState extends State<WinePhotoScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'For best results, ensure the label is well-lit and visible',
-            style: TextStyle(
+          if (!widget.isPro)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.star,
+                    color: Colors.amber,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Upgrade to Pro to unlock AI label analysis!',
+                      style: TextStyle(
+                        color: Colors.amber[300],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Text(
+            widget.isPro
+                ? 'For best results, ensure the label is well-lit and visible'
+                : 'Position the wine bottle clearly in the frame',
+            style: const TextStyle(
               color: Colors.white70,
               fontSize: 12,
               fontStyle: FontStyle.italic,

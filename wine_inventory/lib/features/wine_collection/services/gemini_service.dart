@@ -12,7 +12,7 @@ class GeminiService {
   
   GeminiService({
     required this.apiKey, 
-    this.modelName = 'gemini-1.5-pro', // Default to 1.5 Pro
+    this.modelName = 'gemini-2.0-flash', // Default to 1.5 Pro
   });
   
   Future<WineBottle?> analyzeWineImage(File imageFile) async {

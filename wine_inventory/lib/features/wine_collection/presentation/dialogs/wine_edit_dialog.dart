@@ -458,7 +458,7 @@ class WineEditDialogState extends State<WineEditDialog> {
     final imagePath = await Navigator.push<String>(
       context,
       MaterialPageRoute(
-        builder: (context) => const WinePhotoScreen(),
+        builder: (context) => const WinePhotoScreen(isPro: false),
       ),
     );
 
