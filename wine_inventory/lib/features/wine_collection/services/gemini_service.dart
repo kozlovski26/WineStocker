@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import '../../wine_collection/domain/models/wine_bottle.dart';
+import '../domain/models/wine_bottle.dart';
 import '../../../core/models/wine_type.dart';
 
 class GeminiService {
