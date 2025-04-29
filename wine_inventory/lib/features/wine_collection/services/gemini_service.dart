@@ -12,7 +12,7 @@ class GeminiService {
   
   GeminiService({
     required this.apiKey, 
-    this.modelName = 'gemini-2.0-flash', // Default to 1.5 Pro
+    this.modelName = 'gemini-1.5-flash', // Default to 1.5 Pro
   });
   
   Future<WineBottle?> analyzeWineImage(File imageFile) async {
@@ -40,7 +40,7 @@ class GeminiService {
         // Create a chat session with Gemini using the improved prompt
         final chat = model.startChat(history: [
           Content.multi([
-            TextPart('''You are a highly skilled AI assistant specializing in analyzing wine images and extracting key information. Your task is to examine an image of a wine bottle and return a JSON object containing the following details. It is CRUCIAL that your output adheres strictly to the specified JSON format. If you cannot confidently determine a value, use `null` for that field. Do NOT include any surrounding text or conversational elements in your output; ONLY the JSON.
+            TextPart('''You are a highly skilled AI assistant specializing in analyzing wine images and extracting key information. You are also a wine expert with deep knowledge of wine regions, grape varieties, and wine characteristics worldwide. Your task is to examine an image of a wine bottle and return a JSON object containing the following details. It is CRUCIAL that your output adheres strictly to the specified JSON format. If you cannot confidently determine a value, use `null` for that field. Do NOT include any surrounding text or conversational elements in your output; ONLY the JSON.
 
 **Desired JSON Structure:**
 
@@ -51,9 +51,7 @@ class GeminiService {
   "year": "Vintage Year (e.g., 2018), or null if not visible",
   "grapes": ["Grape Variety 1", "Grape Variety 2", ...],
   "color": "Wine Color (e.g., red, white, rosé, sparkling, dessert)",
-  "country": "Country of Origin (e.g., France, Italy, USA)",
-  "price": "Estimated Price (numeric value only, e.g., 45.99 or null)",
-  "currency": "Currency code (USD, ILS, EUR, GBP, or JPY)"
+  "country": "Country of Origin (e.g., France, Italy, USA)"
 }
 ```
 
@@ -61,53 +59,54 @@ class GeminiService {
 
 1. **Image Analysis:** Analyze the provided wine bottle image for labels, text, and any other visual cues that provide information about the wine.
 
-2. **Field Extraction:** Extract the requested fields (name, winery, year, grapes, color, country, price, currency) from the image. Prioritize information from the label, but also consider other visual elements.
+2. **Field Extraction:** Extract the requested fields (name, winery, year, grapes, color, country) from the image. Prioritize information from the label, but also consider other visual elements.
 
-3. **Grapes:** Identify the grape varietals used in the wine. For grapes, make educated guesses based on the wine's region, type, and other context clues, even if not explicitly shown on the label. Return an array of strings for each grape variety. For example, if you see a Bordeaux red wine, you can include ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"] as these are typical Bordeaux grape varieties. If you absolutely cannot determine grape varieties, set the value to `null`.
+3. **Grapes:** Use your extensive wine knowledge to identify the grape varietals used in the wine:
+   - For wines where the grape variety is explicitly stated on the label, use that information.
+   - For wines where grape varieties are not stated but region is known (e.g., Bordeaux, Barolo), use your knowledge of typical grape varieties for that region.
+   - For example, if you see a Bordeaux red, include ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"] as typical Bordeaux varieties.
+   - For Barolo, you would know it's 100% Nebbiolo.
+   - For Burgundy reds, typically 100% Pinot Noir.
+   - Be specific and accurate - use your wine expertise to match grape varieties to regions and wine styles.
+   - Return an array of strings for each grape variety.
+   - If you absolutely cannot determine grape varieties, set the value to `null`.
 
-4. **Color:** Determine the wine color based on the liquid's appearance in the image. Provide a general color description (e.g., red, white, rosé, sparkling, dessert).
+4. **Color:** Determine the wine color based on bottle color, label information, and wine type. Provide a general color description (e.g., red, white, rosé, sparkling, dessert).
 
 5. **Year:** Extract the vintage year from the label. If no year is visible, use `null`.
 
 6. **Country of Origin:** 
-   - Only specify the country if you can confidently determine it from the label or if the winery is clearly from a specific country.
+   - Use your knowledge of wine regions to determine the country with high confidence.
+   - Look for indicators like language on the label, appellation systems, etc.
    - For example: Antinori (Italy), Opus One (USA), Chateau Margaux (France), etc.
-   - If you cannot determine the country with confidence, use `null`. Do NOT guess the country based on other factors.
-   - Be especially careful with these well-known wine regions and their countries:
+   - If you cannot determine the country with confidence, use `null`. Do NOT guess based on uncertain factors.
+   - Key wine regions and their countries:
      - Zyme, Antinori, Barolo, Chianti, Brunello → Italy
-     - Bordeaux, Burgundy, Champagne → France
-     - Rioja, Ribera del Duero → Spain
-     - Napa Valley, Sonoma → USA
-     - Barossa Valley, Margaret River → Australia
-     - Mosel, Rheingau → Germany
-     - Douro, Dao → Portugal
-     - Golan Heights, Judean Hills → Israel
+     - Bordeaux, Burgundy, Champagne, Loire, Rhône → France
+     - Rioja, Ribera del Duero, Priorat → Spain
+     - Napa Valley, Sonoma, Willamette Valley → USA
+     - Barossa Valley, Margaret River, Hunter Valley → Australia
+     - Mosel, Rheingau, Baden → Germany
+     - Douro, Dao, Alentejo → Portugal
+     - Golan Heights, Judean Hills, Galilee → Israel
+     - Marlborough, Central Otago → New Zealand
+     - Mendoza, Uco Valley → Argentina
+     - Casablanca Valley, Maipo Valley → Chile
+     - Stellenbosch, Swartland, Hemel-en-Aarde → South Africa
 
-7. **Price and Currency:** 
-   - Provide an *estimated* price of the wine if possible.
-   - The price MUST be a numeric value only, with no currency symbols or formatting (e.g., 25.50). 
-   - Add a "currency" field with the appropriate currency code based on the country or visible price information:
-     - For Israeli wines, use "ILS" (Israeli Shekel)
-     - For European wines, use "EUR" (Euro)
-     - For UK wines, use "GBP" (British Pound)
-     - For US wines, use "USD" (US Dollar)
-     - For Japanese wines, use "JPY" (Japanese Yen)
-     - For other regions or if country is null, use `null` for currency
-   - If you cannot estimate the price, use `null` for both price and currency.
+7. **IMPORTANT: Use All Available Knowledge**: Use your extensive wine knowledge to interpret what you see on the label. If you recognize a specific appellation or classification system (like Grand Cru, DOCG, etc.), use this to inform your analysis of grape varieties, quality level, and other attributes.
 
-8. **IMPORTANT: Accuracy Over Completeness**: It is better to return `null` for fields you cannot confidently determine than to provide incorrect information. Never guess the country or winery if not clearly indicated.
-
-9. **JSON Output:** Construct a JSON object matching the EXACT structure provided above. Ensure that the JSON is valid and contains ONLY the JSON object itself. No extra text, explanations, or conversational elements.''')
+8. **JSON Output:** Construct a JSON object matching the EXACT structure provided above. Ensure that the JSON is valid and contains ONLY the JSON object itself. No extra text, explanations, or conversational elements.''')
           ]),
           Content.model([
-            TextPart('I will analyze the wine image according to your specifications. I\'ll return a valid JSON object with all the requested fields in the exact format specified. I\'ll be particularly careful about country identification, using null if I cannot confidently determine it. For currency, I\'ll match it to the country when known, and use null otherwise. My response will contain only the JSON object without any surrounding text or explanations.')
+            TextPart('I will analyze the wine image according to your specifications and leverage my knowledge of wine regions, grape varieties, and wine characteristics worldwide. I\'ll return a valid JSON object with all the requested fields in the exact format specified. I\'ll be particularly careful about grape identification, using region-specific knowledge when appropriate, and will provide accurate country information based on visual cues and wine knowledge. My response will contain only the JSON object without any surrounding text or explanations.')
           ]),
         ]);
 
         // Send the image to Gemini
         final content = Content.multi([
           DataPart('image/jpeg', imageBytes),
-          TextPart('Please analyze this wine image and respond with ONLY the JSON object containing the details. Remember to only specify the country if you can confidently determine it from the label or winery name - use null if uncertain. For grape varieties, make educated guesses based on the wine\'s region and style if appropriate.'),
+          TextPart('Please analyze this wine image and respond with ONLY the JSON object containing the details. Use your extensive wine knowledge to identify grape varieties based on the region and style if not explicitly stated on the label. Remember to only specify the country if you can confidently determine it from the label, winery name, or recognized wine region.'),
         ]);
 
         // Get the response from Gemini
@@ -193,33 +192,6 @@ class GeminiService {
         }
       }
       
-      // Handle price - try multiple approaches to extract numeric value
-      double? priceValue;
-      if (data['price'] != null) {
-        if (data['price'] is num) {
-          priceValue = (data['price'] as num).toDouble();
-        } else {
-          // Try to extract numeric value from string
-          final priceStr = data['price'].toString().replaceAll(RegExp(r'[^\d.,]'), '');
-          try {
-            priceValue = double.parse(priceStr.replaceAll(',', '.'));
-          } catch (e) {
-            debugPrint('Could not parse price: $e');
-          }
-        }
-      }
-      
-      // Handle currency information
-      String? currencyInfo = data['currency'];
-      
-      // Only default to ILS if we're confident the wine is from Israel
-      if (data['country'] == 'Israel' && currencyInfo == null) {
-        currencyInfo = 'ILS'; // Default to ILS for Israeli wines if not specified
-      }
-      
-      // We no longer add price information to notes, as it's shown separately in the UI
-      // Just keep grape information in notes
-      
       return WineBottle(
         name: data['name'],
         winery: data['winery'],
@@ -227,10 +199,8 @@ class GeminiService {
         notes: grapesInfo,
         country: data['country'],
         type: wineType,
-        price: priceValue,
+        price: null, // Always set price to null
         dateAdded: DateTime.now(),
-        // Add any extra metadata as needed
-        metadata: {'currency': currencyInfo},
       );
     } catch (e) {
       debugPrint('Error parsing wine bottle from JSON: $e');
