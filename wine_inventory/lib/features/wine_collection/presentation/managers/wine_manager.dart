@@ -7,6 +7,7 @@ import '../../data/repositories/wine_repository.dart';
 import 'package:wine_inventory/core/models/wine_type.dart';  // Fixed import path
 import '../dialogs/first_time_setup_dialog.dart';
 import 'package:wine_inventory/core/models/currency.dart'; 
+import 'dart:io';
 
 class Position {
   final int row;
@@ -23,6 +24,7 @@ class WineManager extends ChangeNotifier {
   WineType? _selectedFilter;
   int totalBottles = 0;
   double totalCollectionValue = 0.0;
+  // Always be in grid view mode
   bool isGridView = true;
   bool _isLoading = false;
   bool _isGridLoading = false;
@@ -82,11 +84,6 @@ class WineManager extends ChangeNotifier {
       _isInitialized = true;
       notifyListeners();
     }
-  }
-
-  void toggleView() {
-    isGridView = !isGridView;
-    notifyListeners();
   }
 
   void setFilter(WineType? type) {
@@ -180,11 +177,32 @@ class WineManager extends ChangeNotifier {
     }
   }
 
-  Future<void> markAsDrunk(WineBottle bottle, int row, int col) async {
+  Future<void> markAsDrunk(WineBottle bottle, int row, int col, {File? eventPhotoFile}) async {
     try {
       _setGridLoading(true);
 
-      drunkWines.add(bottle);
+      // Create a copy with the event's details
+      final drunkBottle = bottle.copyWith(
+        isDrunk: true,
+        dateDrunk: DateTime.now(),
+      );
+
+      // Upload event photo if provided
+      String? eventPhotoUrl;
+      if (eventPhotoFile != null) {
+        eventPhotoUrl = await repository.uploadWineImage(eventPhotoFile.path);
+        if (eventPhotoUrl != null) {
+          // Store the event photo URL in metadata
+          Map<String, dynamic> updatedMetadata = {};
+          if (drunkBottle.metadata != null) {
+            updatedMetadata = Map<String, dynamic>.from(drunkBottle.metadata!);
+          }
+          updatedMetadata['eventPhotoUrl'] = eventPhotoUrl;
+          drunkBottle.metadata = updatedMetadata;
+        }
+      }
+
+      drunkWines.add(drunkBottle);
       _grid[row][col] = WineBottle();
       
       await Future.wait([
@@ -199,6 +217,79 @@ class WineManager extends ChangeNotifier {
       rethrow;
     } finally {
       _setGridLoading(false);
+    }
+  }
+
+  Future<void> addDrunkWine(WineBottle bottle, {File? imageFile, File? eventPhotoFile}) async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      // Ensure dateDrunk is set
+      if (bottle.dateDrunk == null) {
+        bottle = bottle.copyWith(dateDrunk: DateTime.now());
+      }
+      
+      // Ensure isDrunk is set
+      if (!bottle.isDrunk) {
+        bottle = bottle.copyWith(isDrunk: true);
+      }
+      
+      // Upload bottle image if available
+      if (imageFile != null) {
+        final imageUrl = await repository.uploadWineImage(imageFile.path);
+        if (imageUrl != null) {
+          bottle = bottle.copyWith(imagePath: imageUrl);
+        }
+      }
+      
+      // Upload event photo if available
+      if (eventPhotoFile != null) {
+        final eventPhotoUrl = await repository.uploadWineImage(eventPhotoFile.path);
+        if (eventPhotoUrl != null) {
+          // Add the event photo URL to the wine's metadata
+          final updatedMetadata = {...bottle.metadata ?? {}, 'eventPhotoUrl': eventPhotoUrl};
+          bottle = bottle.copyWith(metadata: updatedMetadata);
+        }
+      }
+      
+      drunkWines.add(bottle);
+      await repository.saveDrunkWines(drunkWines);
+      
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> updateDrunkWine(WineBottle updatedWine) async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      // Find the index of the wine to update
+      final index = drunkWines.indexWhere((wine) => 
+          wine.name == updatedWine.name && 
+          wine.winery == updatedWine.winery &&
+          wine.dateDrunk == updatedWine.dateDrunk);
+      
+      if (index != -1) {
+        // Replace the wine at the found index
+        drunkWines[index] = updatedWine;
+        await repository.saveDrunkWines(drunkWines);
+      } else {
+        throw Exception('Wine not found in drunk wines list');
+      }
+      
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
     }
   }
 

@@ -204,36 +204,114 @@ class _SettingsDialogState extends State<SettingsDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Rows'),
-                Text('($_rows)'),
               ],
             ),
-            Slider(
-              value: _rows.toDouble(),
-              min: 1,
-              max: 20,
-              divisions: 19,
-              label: _rows.toString(),
-              onChanged: (value) {
-                setState(() => _rows = value.round());
-              },
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Slider(
+                    value: _rows.toDouble(),
+                    min: 1,
+                    max: 20,
+                    divisions: 19,
+                    label: _rows.toString(),
+                    onChanged: (value) {
+                      setState(() => _rows = value.round());
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 60,
+                  child: TextField(
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.black12,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[700]!),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[700]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.teal[400]!),
+                      ),
+                    ),
+                    controller: TextEditingController(text: _rows.toString()),
+                    onChanged: (value) {
+                      final newValue = int.tryParse(value);
+                      if (newValue != null && newValue >= 1 && newValue <= 20) {
+                        setState(() => _rows = newValue);
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Columns'),
-                Text('($_columns)'),
               ],
             ),
-            Slider(
-              value: _columns.toDouble(),
-              min: 1,
-              max: 10,
-              divisions: 9,
-              label: _columns.toString(),
-              onChanged: (value) {
-                setState(() => _columns = value.round());
-              },
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Slider(
+                    value: _columns.toDouble(),
+                    min: 1,
+                    max: 10,
+                    divisions: 9,
+                    label: _columns.toString(),
+                    onChanged: (value) {
+                      setState(() => _columns = value.round());
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 60,
+                  child: TextField(
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.black12,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[700]!),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[700]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.teal[400]!),
+                      ),
+                    ),
+                    controller: TextEditingController(text: _columns.toString()),
+                    onChanged: (value) {
+                      final newValue = int.tryParse(value);
+                      if (newValue != null && newValue >= 1 && newValue <= 10) {
+                        setState(() => _columns = newValue);
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
             if (_isPro) ...[
               const SizedBox(height: 16),

@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../domain/models/wine_bottle.dart';
 import '../managers/wine_manager.dart';
 import '../../utils/wine_type_helper.dart';
 import './wine_details_dialog.dart';
 import '../../../../core/models/currency.dart';
+
+// Define the enum at the top level, outside any class
+enum SortCriteria { date, name, type, price }
 
 class DrunkWinesDialog extends StatefulWidget {
   final WineManager wineManager;
@@ -22,21 +26,13 @@ class DrunkWinesDialog extends StatefulWidget {
 }
 
 class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
-  // Add sort direction state
+  // Sorting options
+  SortCriteria _currentSortCriteria = SortCriteria.date;
   bool _sortAscending = false;
 
   @override
   Widget build(BuildContext context) {
-    final sortedDrunkWines = List<WineBottle>.from(widget.wineManager.drunkWines)
-      ..sort((a, b) {
-        if (_sortAscending) {
-          return (a.dateDrunk ?? DateTime.now())
-              .compareTo(b.dateDrunk ?? DateTime.now());
-        } else {
-          return (b.dateDrunk ?? DateTime.now())
-              .compareTo(a.dateDrunk ?? DateTime.now());
-        }
-      });
+    final sortedDrunkWines = _getSortedWines();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.9,
@@ -57,6 +53,7 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
         child: Column(
           children: [
             _buildHeader(),
+            _buildSortOptions(),
             if (sortedDrunkWines.isEmpty)
               _buildEmptyState()
             else
@@ -96,6 +93,162 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
     );
   }
 
+  List<WineBottle> _getSortedWines() {
+    final wines = List<WineBottle>.from(widget.wineManager.drunkWines);
+    
+    wines.sort((a, b) {
+      int comparison = 0; // Initialize with a default value
+      
+      switch (_currentSortCriteria) {
+        case SortCriteria.date:
+          comparison = (a.dateDrunk ?? DateTime.now())
+              .compareTo(b.dateDrunk ?? DateTime.now());
+          break;
+        case SortCriteria.name:
+          comparison = (a.name ?? '').compareTo(b.name ?? '');
+          break;
+        case SortCriteria.type:
+          final aType = a.type?.index ?? -1;
+          final bType = b.type?.index ?? -1;
+          comparison = aType.compareTo(bType);
+          break;
+        case SortCriteria.price:
+          final aPrice = a.price ?? 0;
+          final bPrice = b.price ?? 0;
+          comparison = aPrice.compareTo(bPrice);
+          break;
+      }
+      
+      return _sortAscending ? comparison : -comparison;
+    });
+    
+    return wines;
+  }
+
+  Widget _buildSortOptions() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildSortChip(
+              label: 'Date', 
+              criteria: SortCriteria.date,
+              icon: Icons.calendar_today,
+            ),
+            const SizedBox(width: 8),
+            _buildSortChip(
+              label: 'Name', 
+              criteria: SortCriteria.name,
+              icon: Icons.sort_by_alpha,
+            ),
+            const SizedBox(width: 8),
+            _buildSortChip(
+              label: 'Type', 
+              criteria: SortCriteria.type,
+              icon: Icons.wine_bar,
+            ),
+            const SizedBox(width: 8),
+            _buildSortChip(
+              label: 'Price', 
+              criteria: SortCriteria.price,
+              icon: Icons.attach_money,
+            ),
+            const SizedBox(width: 16),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.amber[900]?.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.amber[800]!.withOpacity(0.5),
+                  width: 1,
+                ),
+              ),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _sortAscending = !_sortAscending;
+                  });
+                },
+                child: Row(
+                  children: [
+                    Icon(
+                      _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                      size: 16,
+                      color: Colors.amber[300],
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _sortAscending ? 'Ascending' : 'Descending',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSortChip({
+    required String label,
+    required SortCriteria criteria,
+    required IconData icon,
+  }) {
+    final isSelected = _currentSortCriteria == criteria;
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _currentSortCriteria = criteria;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected 
+              ? Colors.red[900]?.withOpacity(0.3) 
+              : Colors.grey[850]?.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected 
+                ? Colors.red[800]!.withOpacity(0.5)
+                : Colors.grey[700]!.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.amber[300] : Colors.grey[400],
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.white : Colors.grey[400],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildWineCard(BuildContext context, WineBottle wine) {
     // Get color based on wine type, defaulting to deep purple
     Color wineColor = Colors.deepPurple;
@@ -103,37 +256,242 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
       wineColor = WineTypeHelper.getTypeColor(wine.type!);
     }
     
+    // Format price if available
+    String? priceString;
+    if (wine.price != null) {
+      priceString = wine.price!.toStringAsFixed(2);
+    }
+    
+    // Check if wine has an event photo
+    final hasEventPhoto = wine.metadata != null && wine.metadata!['eventPhotoUrl'] != null;
+    
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      elevation: 4,
-      shadowColor: Colors.black.withOpacity(0.4),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.3),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(15),
       ),
       child: InkWell(
         onTap: () => _showWineDetails(context, wine),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(15),
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(15),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                wineColor.withOpacity(0.2),
+                wineColor.withOpacity(0.15),
                 Colors.grey[900]!,
               ],
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _buildWineImageSection(wine),
-                const SizedBox(width: 16),
+                // Wine image
+                Stack(
+                  children: [
+                    _buildWineImageSection(wine),
+                    if (hasEventPhoto)
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.camera_alt,
+                            size: 14,
+                            color: Colors.amber[300],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                
+                // Wine details
                 Expanded(
-                  child: _buildWineInfoSection(wine, wineColor),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Source icon and wine name
+                      Row(
+                        children: [
+                          // Source icon - shows fridge icon if from fridge
+                          if (wine.source == WineSource.fridge)
+                            Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[700]?.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Icon(
+                                Icons.kitchen,
+                                size: 14,
+                                color: Colors.blue[300],
+                              ),
+                            ),
+                          
+                          // Event photo indicator for larger screens
+                          if (hasEventPhoto)
+                            Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.amber[900]?.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Icon(
+                                Icons.camera_alt,
+                                size: 14,
+                                color: Colors.amber[300],
+                              ),
+                            ),
+                          
+                          // Wine name
+                          Expanded(
+                            child: Text(
+                              wine.name ?? 'Unnamed Wine',
+                              style: GoogleFonts.playfairDisplay(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          
+                          // Date drunk
+                          if (wine.dateDrunk != null)
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey[850],
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              margin: const EdgeInsets.only(left: 4),
+                              child: Text(
+                                DateFormat.MMMd().format(wine.dateDrunk!),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      
+                      // Winery
+                      if (wine.winery != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          wine.winery!,
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      
+                      // Year and price row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (wine.year != null) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              margin: const EdgeInsets.only(top: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                wine.year!,
+                                style: TextStyle(
+                                  color: Colors.amber[300],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                          
+                          if (priceString != null) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              margin: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                priceString,
+                                style: TextStyle(
+                                  color: Colors.green[300],
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      
+                      // Add to Fridge button - improved styling
+                      Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        child: InkWell(
+                          onTap: () => _showGridSelectionDialog(context, wine),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.green[700]!.withOpacity(0.7),
+                                  Colors.green[900]!.withOpacity(0.7),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.green[400]!.withOpacity(0.5),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.kitchen,
+                                  size: 14,
+                                  color: Colors.green[100],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Add to Fridge',
+                                  style: TextStyle(
+                                    color: Colors.green[100],
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -147,20 +505,20 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
     return Hero(
       tag: 'wine-image-${wine.hashCode}',
       child: Container(
-        width: 85,
-        height: 130,
+        width: 50,
+        height: 80,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           child: wine.imagePath != null
               ? CachedNetworkImage(
                   imageUrl: wine.imagePath!,
@@ -175,11 +533,6 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
   }
 
   Widget _buildWineInfoSection(WineBottle wine, Color wineColor) {
-    String wineTypeName = 'Unknown';
-    if (wine.type != null) {
-      wineTypeName = WineTypeHelper.getTypeName(wine.type!);
-    }
-    
     String? priceString;
     if (wine.price != null) {
       priceString = wine.price!.toStringAsFixed(2);
@@ -190,60 +543,57 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
       children: [
         Row(
           children: [
-            if (wine.type != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            // Source icon - indicates if wine came from fridge or external source
+            Tooltip(
+              message: wine.source == WineSource.fridge ? 'From Wine Fridge' : 'External Source',
+              child: Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: wineColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  color: wine.source == WineSource.fridge 
+                      ? Colors.blue[700]?.withOpacity(0.2) 
+                      : Colors.orange[700]?.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: wineColor.withOpacity(0.3),
+                    color: wine.source == WineSource.fridge 
+                        ? Colors.blue[400]!.withOpacity(0.3) 
+                        : Colors.orange[400]!.withOpacity(0.3),
                     width: 1,
                   ),
                 ),
+                child: Icon(
+                  wine.source == WineSource.fridge 
+                      ? Icons.kitchen
+                      : Icons.location_on,
+                  size: 14,
+                  color: wine.source == WineSource.fridge 
+                      ? Colors.blue[300] 
+                      : Colors.orange[300],
+                ),
+              ),
+            ),
+            if (wine.dateDrunk != null)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[800]?.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Text(
-                  wineTypeName,
+                  DateFormat.yMd().format(wine.dateDrunk!),
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: wineColor.withOpacity(0.9),
+                    color: Colors.grey[300],
                   ),
                 ),
               ),
-            const Spacer(),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[800]?.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.wine_bar,
-                    size: 14,
-                    color: Colors.red[300],
-                  ),
-                  const SizedBox(width: 4),
-                  if (wine.dateDrunk != null)
-                    Text(
-                      DateFormat.yMd().format(wine.dateDrunk!),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[300],
-                      ),
-                    ),
-                ],
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
           wine.name ?? 'Unnamed Wine',
           style: GoogleFonts.playfairDisplay(
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
@@ -251,12 +601,12 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
           overflow: TextOverflow.ellipsis,
         ),
         if (wine.winery != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             wine.winery!,
             style: TextStyle(
               color: Colors.grey[400],
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
             maxLines: 1,
@@ -305,21 +655,33 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
             ],
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.green[800]?.withOpacity(0.8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                ),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add to Collection'),
+            Padding(
+              padding: const EdgeInsets.only(top: 4.0),
+              child: OutlinedButton.icon(
                 onPressed: () => _showGridSelectionDialog(context, wine),
+                icon: const Icon(Icons.add_circle_outline, size: 18),
+                label: const Text(
+                  'Add to Fridge',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.green[400],
+                  backgroundColor: Colors.green[900]?.withOpacity(0.2),
+                  side: BorderSide(color: Colors.green[400]!, width: 1.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  minimumSize: const Size(120, 36),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  elevation: 2,
+                ),
               ),
             ),
           ],
@@ -363,78 +725,28 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                   ),
                   child: Icon(
                     Icons.wine_bar_outlined,
-                    size: 32,
+                    size: 28,
                     color: Colors.red[400],
                   ),
                 ),
-                const SizedBox(width: 16),
-                Text(
-                  'Drunk Wines',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        color: Colors.black.withOpacity(0.3),
-                        offset: const Offset(0, 2),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                Tooltip(
-                  message: _sortAscending 
-                    ? 'Sort by newest first' 
-                    : 'Sort by oldest first',
-                  child: IconButton(
-                    icon: Icon(
-                      _sortAscending 
-                        ? Icons.arrow_upward
-                        : Icons.arrow_downward,
-                      color: Colors.white70,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _sortAscending = !_sortAscending;
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Add date order indicator
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[850],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        size: 14,
-                        color: Colors.amber[300],
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _sortAscending ? 'Oldest first' : 'Newest first',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey[400],
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Drunk Wines',
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withOpacity(0.3),
+                          offset: const Offset(0, 2),
+                          blurRadius: 4,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -533,7 +845,16 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
         col: -1,
         isDrunkWine: true,
       ),
-    );
+    ).then((_) {
+      // Force a refresh of the UI when returning from details dialog
+      // This ensures any added event photos will show their indicators
+      if (mounted) {
+        setState(() {
+          // Update the local state to reflect any changes made in the details dialog
+          // The metadata updates are already saved in the WineManager
+        });
+      }
+    });
   }
 
   void _handleDismiss(BuildContext context, WineBottle wine) {
@@ -632,100 +953,297 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
         return Dialog(
           backgroundColor: Colors.grey[900],
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+              maxWidth: MediaQuery.of(context).size.width * 0.9,
+            ),
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                bool isProcessing = false;
+                
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Header with wine info
+                    Row(
+                      children: [
+                        // Small wine image
+                        if (wine.imagePath != null)
+                          Container(
+                            width: 40,
+                            height: 60,
+                            margin: const EdgeInsets.only(right: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: CachedNetworkImage(
+                                imageUrl: wine.imagePath!,
+                                fit: BoxFit.cover,
+                                errorWidget: (context, url, error) => _buildPlaceholderImage(),
+                                placeholder: (context, url) => _buildLoadingImage(),
+                              ),
+                            ),
+                          ),
+                        // Wine details
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                wine.name ?? 'Unnamed Wine',
+                                style: GoogleFonts.playfairDisplay(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (wine.winery != null)
+                                Text(
+                                  wine.winery!,
+                                  style: TextStyle(
+                                    color: Colors.grey[400],
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
+                        // Close button
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white70),
+                          onPressed: () => Navigator.pop(context),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Title and instructions
                     Text(
-                      'Select Grid Position',
+                      'Add to Your Fridge',
                       style: GoogleFonts.playfairDisplay(
-                        fontSize: 24,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.green[900]?.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green[800]!.withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 16, color: Colors.green[300]),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'Tap an empty slot (green) to add this wine',
+                              style: TextStyle(
+                                color: Colors.green[100],
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Tap an empty slot (green) to add this wine to your collection',
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.5,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(
-                          widget.wineManager.settings.rows,
-                          (row) => Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: List.generate(
-                              widget.wineManager.settings.columns,
-                              (col) {
-                                final currentBottle = widget.wineManager.grid[row][col];
-                                return Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: InkWell(
-                                    onTap: currentBottle.isEmpty 
-                                      ? () => _restoreToPosition(context, wine, row, col)
-                                      : null,
-                                    child: Container(
-                                      width: 60,
-                                      height: 60,
-                                      decoration: BoxDecoration(
-                                        color: currentBottle.isEmpty 
-                                          ? Colors.green.withOpacity(0.2)
-                                          : Colors.red.withOpacity(0.2),
-                                        border: Border.all(
-                                          color: currentBottle.isEmpty 
-                                            ? Colors.green.withOpacity(0.5)
-                                            : Colors.red.withOpacity(0.5),
-                                          width: 1,
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Grid
+                    Flexible(
+                      child: Stack(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey[800]!),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.vertical,
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: List.generate(
+                                      widget.wineManager.settings.rows,
+                                      (row) => Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: List.generate(
+                                          widget.wineManager.settings.columns,
+                                          (col) {
+                                            final currentBottle = widget.wineManager.grid[row][col];
+                                            final isEmpty = currentBottle.isEmpty;
+                                            return Padding(
+                                              padding: const EdgeInsets.all(4.0),
+                                              child: Material(
+                                                color: Colors.transparent,
+                                                child: InkWell(
+                                                  onTap: isEmpty && !isProcessing
+                                                    ? () async {
+                                                        setState(() => isProcessing = true);
+                                                        await _restoreToPosition(context, wine, row, col);
+                                                      }
+                                                    : null,
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  child: Container(
+                                                    width: 50,
+                                                    height: 50,
+                                                    decoration: BoxDecoration(
+                                                      color: isEmpty 
+                                                        ? Colors.green.withOpacity(0.2)
+                                                        : Colors.red.withOpacity(0.2),
+                                                      border: Border.all(
+                                                        color: isEmpty 
+                                                          ? Colors.green.withOpacity(0.5)
+                                                          : Colors.red.withOpacity(0.5),
+                                                        width: 1,
+                                                      ),
+                                                      borderRadius: BorderRadius.circular(8),
+                                                    ),
+                                                    child: Center(
+                                                      child: isEmpty
+                                                        ? Icon(
+                                                            Icons.add,
+                                                            color: Colors.green[400],
+                                                            size: 20,
+                                                          )
+                                                        : Stack(
+                                                            alignment: Alignment.center,
+                                                            children: [
+                                                              Icon(
+                                                                Icons.wine_bar,
+                                                                color: Colors.red[400],
+                                                                size: 20,
+                                                              ),
+                                                              Positioned(
+                                                                right: 0,
+                                                                bottom: 0,
+                                                                child: Container(
+                                                                  width: 12,
+                                                                  height: 12,
+                                                                  decoration: const BoxDecoration(
+                                                                    color: Colors.black54,
+                                                                    shape: BoxShape.circle,
+                                                                  ),
+                                                                  child: const Icon(
+                                                                    Icons.block,
+                                                                    color: Colors.white,
+                                                                    size: 8,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
                                         ),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        currentBottle.isEmpty 
-                                          ? Icons.add
-                                          : Icons.wine_bar,
-                                        color: currentBottle.isEmpty 
-                                          ? Colors.green[400]
-                                          : Colors.red[400],
                                       ),
                                     ),
                                   ),
-                                );
-                              },
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          if (isProcessing)
+                            Container(
+                              width: double.infinity,
+                              height: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.7),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const CircularProgressIndicator(
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Adding wine to fridge...',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                  ),
-                ),
-              ],
+                    
+                    const SizedBox(height: 8),
+                    
+                    // Legend
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildLegendItem(Icons.add, 'Available', Colors.green[400]!),
+                        const SizedBox(width: 24),
+                        _buildLegendItem(Icons.wine_bar, 'Occupied', Colors.red[400]!),
+                      ],
+                    ),
+                  ],
+                );
+              }
             ),
           ),
         );
       },
+    );
+  }
+  
+  Widget _buildLegendItem(IconData icon, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey[400],
+            fontSize: 12,
+          ),
+        ),
+      ],
     );
   }
 
@@ -741,6 +1259,7 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
         isDrunk: false,
         dateDrunk: null,
         dateAdded: DateTime.now(),
+        source: WineSource.fridge,
       );
 
       // Update grid
@@ -750,7 +1269,7 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${wine.name} copied to collection'),
+            content: Text('${wine.name} added to fridge'),
             backgroundColor: Colors.green[700],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -764,7 +1283,7 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error restoring wine: ${e.toString()}'),
+            content: Text('Error adding wine: ${e.toString()}'),
             backgroundColor: Colors.red[700],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(

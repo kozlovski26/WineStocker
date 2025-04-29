@@ -1,5 +1,11 @@
 import 'package:wine_inventory/core/models/wine_type.dart';
 
+// Enum for wine source
+enum WineSource {
+  fridge,  // Wine stored in the wine fridge
+  drinkList  // Wine in drink list/consumed
+}
+
 class WineBottle {
   String? name;
   String? winery;
@@ -11,12 +17,14 @@ class WineBottle {
   String? imagePath;
   WineType? type;
   double? rating;
-  double? price; // Added price field
+  // TODO: Fix price handling issues before re-enabling
+  double? price; // Keep the field but handle differently
   bool isFavorite;
   bool isDrunk;
   String? ownerId; // Added owner ID for trading feature
   bool isForTrade; // Added trade status
   Map<String, dynamic>? metadata; // Added metadata for storing additional information
+  WineSource source; // Added source to track if wine is from fridge or external
 
   WineBottle({
     this.name,
@@ -29,12 +37,13 @@ class WineBottle {
     this.imagePath,
     this.type,
     this.rating,
-    this.price, // Added price
+    this.price, // Keep this parameter
     this.isFavorite = false,
     this.isDrunk = false,
     this.ownerId,
     this.isForTrade = false,
     this.metadata,
+    this.source = WineSource.fridge, // Default to fridge
   });
 
   // Get currency code from metadata
@@ -59,6 +68,7 @@ class WineBottle {
     String? ownerId,
     bool? isForTrade,
     Map<String, dynamic>? metadata,
+    WineSource? source,
   }) {
     return WineBottle(
       name: name ?? this.name,
@@ -77,6 +87,7 @@ class WineBottle {
       ownerId: ownerId ?? this.ownerId,
       isForTrade: isForTrade ?? this.isForTrade,
       metadata: metadata ?? this.metadata,
+      source: source ?? this.source,
     );
   }
 
@@ -104,6 +115,9 @@ class WineBottle {
       metadata: json['metadata'] != null 
           ? Map<String, dynamic>.from(json['metadata']) 
           : null,
+      source: json['source'] != null 
+          ? WineSource.values[json['source']] 
+          : WineSource.fridge,
     );
   }
 
@@ -126,6 +140,7 @@ class WineBottle {
       'ownerId': ownerId,
       'isForTrade': isForTrade,
       'metadata': metadata,
+      'source': source.index,
     };
   }
 }

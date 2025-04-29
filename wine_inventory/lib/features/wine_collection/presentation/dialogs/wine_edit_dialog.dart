@@ -11,6 +11,7 @@ import '../../domain/models/wine_bottle.dart';
 import '../managers/wine_manager.dart';
 import '../widgets/wine_year_picker.dart';
 import '../widgets/country_selector.dart';
+import 'package:image_picker/image_picker.dart';
 
 class WineEditDialog extends StatefulWidget {
   final WineBottle bottle;
@@ -19,6 +20,7 @@ class WineEditDialog extends StatefulWidget {
   final int col;
   final bool isEdit;
   final File? tempImageFile;
+  final WineSource? defaultSource;
 
   const WineEditDialog({
     super.key,
@@ -28,6 +30,7 @@ class WineEditDialog extends StatefulWidget {
     required this.col,
     this.isEdit = false,
     this.tempImageFile,
+    this.defaultSource,
   });
 
   @override
@@ -45,6 +48,8 @@ class WineEditDialogState extends State<WineEditDialog> {
   late bool hasPhoto;
   bool _isLoading = false;
   bool isForTrade = false;
+  late WineSource wineSource;
+  File? eventPhotoFile;
 
   @override
   void initState() {
@@ -61,6 +66,7 @@ class WineEditDialogState extends State<WineEditDialog> {
     selectedCountry = widget.bottle.country;
     hasPhoto = widget.bottle.imagePath != null;
     isForTrade = widget.bottle.isForTrade;
+    wineSource = widget.defaultSource ?? widget.bottle.source;
   }
 
   @override
@@ -274,6 +280,139 @@ class WineEditDialogState extends State<WineEditDialog> {
     );
   }
 
+  Widget _buildSourceSelector() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.white24),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      margin: const EdgeInsets.symmetric(vertical: 12.0),
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Storage Location',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16.0,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8.0),
+          Row(
+            children: [
+              SizedBox(
+                width: 40,
+                child: Radio<WineSource>(
+                  value: WineSource.fridge,
+                  groupValue: wineSource,
+                  onChanged: (WineSource? value) {
+                    if (value != null) {
+                      setState(() => wineSource = value);
+                    }
+                  },
+                  activeColor: Colors.teal[400],
+                ),
+              ),
+              Flexible(
+                child: Text(
+                  'In Fridge',
+                  style: TextStyle(color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 24.0),
+              SizedBox(
+                width: 40,
+                child: Radio<WineSource>(
+                  value: WineSource.drinkList,
+                  groupValue: wineSource,
+                  onChanged: (WineSource? value) {
+                    if (value != null) {
+                      setState(() => wineSource = value);
+                    }
+                  },
+                  activeColor: Colors.teal[400],
+                ),
+              ),
+              Flexible(
+                child: Text(
+                  'Drink List',
+                  style: TextStyle(color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          if (wineSource == WineSource.drinkList) ...[
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white24),
+            const SizedBox(height: 16),
+            const Text(
+              'Event Photo',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16.0,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Add a photo from the moment you enjoyed this wine',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12.0,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (eventPhotoFile != null)
+              Container(
+                height: 120,
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amber[600]!),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    eventPhotoFile!,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isLoading ? null : _selectEventPhoto,
+                icon: Icon(
+                  eventPhotoFile != null ? Icons.edit : Icons.add_a_photo,
+                  size: 20,
+                  color: Colors.amber[400],
+                ),
+                label: Text(
+                  eventPhotoFile != null ? 'Change Event Photo' : 'Add Event Photo',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.amber[400],
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: Colors.amber[600]!),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildTradeOption() {
     return Container(
       decoration: BoxDecoration(
@@ -288,6 +427,8 @@ class WineEditDialogState extends State<WineEditDialog> {
         subtitle: Text(
           'Let others know this wine is available for trading',
           style: TextStyle(color: Colors.grey[400], fontSize: 12),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
         ),
         value: isForTrade,
         onChanged: (value) {
@@ -449,6 +590,8 @@ class WineEditDialogState extends State<WineEditDialog> {
           child: _buildWineTypeSelector(),
         ),
         const SizedBox(height: 16),
+        _buildSourceSelector(),
+        const SizedBox(height: 16),
         _buildTradeOption(),
       ],
     );
@@ -538,40 +681,106 @@ class WineEditDialogState extends State<WineEditDialog> {
         ownerId: userId,
         dateAdded: widget.isEdit ? widget.bottle.dateAdded : DateTime.now(),
         country: selectedCountry,
+        source: wineSource,
       );
-
-      // Update the wine in the manager
-      await widget.wineManager.updateWine(updatedBottle, widget.row, widget.col);
       
-      // Update the grid immediately with the new values
-      widget.wineManager.grid[widget.row][widget.col] = updatedBottle;
-      widget.wineManager.notifyListeners(); // Force UI update
-      
-      // Then refresh from database to ensure consistency
-      await widget.wineManager.loadData();
-      
-      if (mounted) {
-        Navigator.pop(context, updatedBottle);
-        
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Wine updated successfully'),
-            backgroundColor: Colors.teal[700],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
+      // Check if wine is from external source
+      if (wineSource == WineSource.drinkList) {
+        // For external wines, add directly to drunk list instead of fridge
+        final drunkWine = updatedBottle.copyWith(
+          isDrunk: true,
+          dateDrunk: DateTime.now(),
         );
+        
+        // Add to drunk wines collection
+        await widget.wineManager.addDrunkWine(drunkWine, imageFile: widget.tempImageFile, eventPhotoFile: eventPhotoFile);
+        
+        if (mounted) {
+          Navigator.pop(context, drunkWine);
+          
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Wine added to your drinking history'),
+              backgroundColor: Colors.amber[700],
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      } else {
+        // For wines saved to the fridge, we need to ensure we're not overriding an existing wine
+        if (widget.isEdit) {
+          // For edits, update at the existing position
+          await widget.wineManager.updateWine(updatedBottle, widget.row, widget.col);
+          
+          // Update the grid immediately with the new values
+          widget.wineManager.grid[widget.row][widget.col] = updatedBottle;
+          widget.wineManager.notifyListeners(); // Force UI update
+        } else {
+          // For new wines, find an empty slot
+          int row = widget.row;
+          int col = widget.col;
+          bool foundEmptySlot = false;
+          
+          // First check if the provided position is empty
+          if (widget.wineManager.grid[row][col].isEmpty) {
+            foundEmptySlot = true;
+          } else {
+            // Search for an empty slot
+            for (int i = 0; i < widget.wineManager.grid.length; i++) {
+              for (int j = 0; j < widget.wineManager.grid[i].length; j++) {
+                if (widget.wineManager.grid[i][j].isEmpty) {
+                  row = i;
+                  col = j;
+                  foundEmptySlot = true;
+                  break;
+                }
+              }
+              if (foundEmptySlot) break;
+            }
+          }
+          
+          if (!foundEmptySlot) {
+            // No empty slot found
+            throw Exception('No empty slots available in your wine fridge!');
+          }
+          
+          // Update at the found empty position
+          await widget.wineManager.updateWine(updatedBottle, row, col);
+          
+          // Update the grid immediately with the new values
+          widget.wineManager.grid[row][col] = updatedBottle;
+          widget.wineManager.notifyListeners(); // Force UI update
+        }
+        
+        // Then refresh from database to ensure consistency
+        await widget.wineManager.loadData();
+        
+        if (mounted) {
+          Navigator.pop(context, updatedBottle);
+          
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Wine added to your collection'),
+              backgroundColor: Colors.teal[700],
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
       }
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to save wine: ${e.toString()}'),
-            backgroundColor: Colors.teal[700],
+            backgroundColor: Colors.red[700],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -612,5 +821,56 @@ class WineEditDialogState extends State<WineEditDialog> {
         ),
       ),
     );
+  }
+
+  Future<void> _selectEventPhoto() async {
+    try {
+      // Show a dialog to choose between camera and gallery
+      final source = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Select Photo Source'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take Photo'),
+                onTap: () => Navigator.pop(context, 'camera'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () => Navigator.pop(context, 'gallery'),
+              ),
+            ],
+          ),
+        ),
+      );
+      
+      if (source == null) return;
+      
+      // Import image_picker within this method to avoid unnecessary dependencies
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source == 'camera' ? ImageSource.camera : ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        setState(() {
+          eventPhotoFile = File(image.path);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error selecting photo: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

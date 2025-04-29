@@ -20,6 +20,8 @@ import 'browse_users_screen.dart';
 import 'package:wine_inventory/features/wine_collection/utils/wine_type_helper.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import 'dart:io';
+import '../screens/wine_recognition_screen.dart';
+import 'package:image_picker/image_picker.dart';
 
 class WineGridScreen extends StatefulWidget {
   final String userId; // Add this line
@@ -40,6 +42,7 @@ class WineGridScreenState extends State<WineGridScreen>
   late WineRepository _repository; // Change this to late
   late WineManager _wineManager;
   bool _isPro = false;
+  bool _isFabOpen = false;
   
 
   @override
@@ -156,31 +159,20 @@ class WineGridScreenState extends State<WineGridScreen>
       BuildContext context, WineManager wineManager) {
     return AppBar(
       title: Text(
-        'WINE CELLAR',
+        'WINE FRIDGE',
         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
       ),
       actions: [
-        if (_isPro)  // Only show AI Wine Scan button for Pro users
-          IconButton(
-            icon: const Icon(Icons.auto_awesome),
-            tooltip: 'AI Wine Scan',
-            onPressed: () => _navigateToScanScreen(context, wineManager),
-          ),
+        IconButton(
+          icon: const Icon(Icons.add),
+          tooltip: 'Add Wine',
+          onPressed: () => _startAddNewWine(context, wineManager),
+        ),
         IconButton(
           icon: const Icon(Icons.wine_bar),
           onPressed: () => _showDrunkWines(context, wineManager),
-        ),
-        IconButton(
-          icon: Icon(
-            wineManager.isGridView ? Icons.view_list : Icons.grid_view,
-          ),
-          onPressed: () {
-            _animationController.reset();
-            wineManager.toggleView();
-            _animationController.forward();
-          },
         ),
         _buildMoreMenu(context, wineManager),
       ],
@@ -276,12 +268,7 @@ class WineGridScreenState extends State<WineGridScreen>
 
   Widget _buildWineGrid(WineManager wineManager) {
     return Expanded(
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: wineManager.isGridView
-            ? _buildGridView(wineManager)
-            : _buildListView(wineManager),
-      ),
+      child: _buildGridView(wineManager),
     );
   }
 
@@ -456,6 +443,10 @@ class WineGridScreenState extends State<WineGridScreen>
         wineManager: wineManager,
         row: row,
         col: col,
+        onDrinkWine: () {
+          Navigator.pop(context); // Close details
+          _showDrinkConfirmation(context, wineManager, bottle, row, col);
+        },
       ),
     );
   }
@@ -649,6 +640,9 @@ class WineGridScreenState extends State<WineGridScreen>
   ) {
     if (!mounted) return;
     
+    // Determine if this was initiated from the + button in the app bar
+    final bool isFromAppBar = row == 0 && col == 0 && wineManager.grid[row][col].isEmpty;
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -665,6 +659,7 @@ class WineGridScreenState extends State<WineGridScreen>
         col: col,
         isEdit: false,
         tempImageFile: imageFile,
+        defaultSource: isFromAppBar ? WineSource.drinkList : WineSource.fridge,
       ),
     );
   }
@@ -678,6 +673,9 @@ class WineGridScreenState extends State<WineGridScreen>
     File imageFile,
   ) {
     if (!mounted) return;
+    
+    // Determine if this was initiated from the + button in the app bar
+    final bool isFromAppBar = row == 0 && col == 0 && wineManager.grid[row][col].isEmpty;
     
     // Update the analyzed wine with the image path
     final bottleToEdit = analyzedWine.copyWith(
@@ -698,6 +696,7 @@ class WineGridScreenState extends State<WineGridScreen>
         col: col,
         isEdit: false,
         tempImageFile: imageFile,
+        defaultSource: isFromAppBar ? WineSource.drinkList : WineSource.fridge,
       ),
     );
   }
@@ -963,6 +962,7 @@ void _showBottleOptionsMenu(
     int col,
   ) {
     bool isProcessing = false;
+    File? eventPhotoFile;
 
     showDialog(
       context: context,
@@ -972,7 +972,51 @@ void _showBottleOptionsMenu(
           builder: (context, setState) {
             return AlertDialog(
               title: const Text('Drink Wine'),
-              content: const Text('Mark this wine as drunk?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Mark this wine as drunk?'),
+                  const SizedBox(height: 16),
+                  if (eventPhotoFile != null)
+                    Container(
+                      height: 120,
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.teal[600]!),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(
+                          eventPhotoFile!,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: isProcessing ? null : () => _selectEventPhoto(context, (file) {
+                      setState(() {
+                        eventPhotoFile = file;
+                      });
+                    }),
+                    icon: Icon(
+                      eventPhotoFile != null ? Icons.edit : Icons.add_a_photo,
+                      size: 20,
+                    ),
+                    label: Text(
+                      eventPhotoFile != null ? 'Change Photo' : 'Add Event Photo',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               actions: [
                 TextButton(
                   onPressed: isProcessing ? null : () => Navigator.pop(context),
@@ -984,7 +1028,7 @@ void _showBottleOptionsMenu(
                       : () async {
                           setState(() => isProcessing = true);
                           try {
-                            await wineManager.markAsDrunk(bottle, row, col);
+                            await wineManager.markAsDrunk(bottle, row, col, eventPhotoFile: eventPhotoFile);
                             if (context.mounted) {
                               Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -1032,6 +1076,68 @@ void _showBottleOptionsMenu(
         );
       },
     );
+  }
+
+  Future<void> _selectEventPhoto(BuildContext context, Function(File) onPhotoSelected) async {
+    try {
+      // Show a dialog to choose between camera and gallery
+      final source = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Select Photo Source'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take Photo'),
+                onTap: () => Navigator.pop(context, 'camera'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () => Navigator.pop(context, 'gallery'),
+              ),
+            ],
+          ),
+        ),
+      );
+      
+      if (source == null || !mounted) return;
+      
+      // Import image_picker within this method to avoid unnecessary dependencies
+      try {
+        final ImagePicker picker = ImagePicker();
+        final XFile? image = await picker.pickImage(
+          source: source == 'camera' ? ImageSource.camera : ImageSource.gallery,
+          maxWidth: 1200,
+          maxHeight: 1200,
+          imageQuality: 85,
+        );
+        
+        if (image != null) {
+          onPhotoSelected(File(image.path));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error selecting photo: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
    void _showDeleteConfirmation(
@@ -1361,26 +1467,94 @@ void _showBottleOptionsMenu(
     // Make sure we have the latest Pro status
     await _checkProStatus();
     
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => MultiProvider(
-          providers: [
-            Provider.value(value: _repository),
-            ChangeNotifierProvider.value(value: wineManager),
-          ],
-          child: WineScanScreen(isPro: _isPro),
-        ),
-      ),
-    );
-    
-    if (result != null && result is Map) {
-      final WineBottle? wineBottle = result['wine'];
-      final File? imageFile = result['imageFile'];
+    try {
+      // Navigate to WinePhotoScreen to take or select a photo
+      final photoPath = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(builder: (context) => const WinePhotoScreen(isPro: true)),
+      );
       
-      if (wineBottle != null && !wineBottle.isEmpty) {
-        // Show the add wine dialog with the pre-filled data from Gemini
-        _showEditDialogWithImage(context, wineManager, wineBottle, imageFile);
+      // If user canceled or something went wrong
+      if (photoPath == null || !mounted) return;
+      
+      // Process the image
+      final File imageFile = File(photoPath);
+      
+      // Show loading indicator
+      _showLoadingDialog(context, 'Analyzing wine image...');
+      
+      // Get the API key
+      const String geminiApiKey = 'AIzaSyDjrSPjrVEjf5zuLfGlMHn3Ysda8lLz1kQ';
+      
+      // Create GeminiService and analyze image
+      final geminiService = GeminiService(
+        apiKey: geminiApiKey,
+        modelName: 'gemini-2.0-flash',
+      );
+      
+      try {
+        // Analyze the wine image
+        final analyzedWine = await geminiService.analyzeWineImage(imageFile);
+        
+        // Close loading dialog
+        if (mounted) Navigator.of(context).pop();
+        
+        if (analyzedWine == null) {
+          // Analysis failed, show error
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Could not analyze the wine label. Please try again.',
+                ),
+                backgroundColor: Colors.orange[700],
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } else {
+          // Analysis succeeded, show the WineRecognitionScreen with the results
+          if (mounted) {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.black,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              builder: (context) => ChangeNotifierProvider.value(
+                value: wineManager,
+                child: WineRecognitionScreen(
+                  initialImageFile: imageFile,
+                  initialWine: analyzedWine,
+                ),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        // Close loading dialog
+        if (mounted) Navigator.of(context).pop();
+        
+        // Show error
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error analyzing wine: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Handle errors during photo capture
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error capturing photo: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -1449,5 +1623,44 @@ void _showBottleOptionsMenu(
     WineBottle prefilledBottle
   ) async {
     _showEditDialogWithImage(context, wineManager, prefilledBottle, null);
+  }
+
+  // New method to find an empty cell and start photo capture
+  void _startAddNewWine(BuildContext context, WineManager wineManager) async {
+    // Find first empty cell
+    int row = 0;
+    int col = 0;
+    bool foundEmptyCell = false;
+    
+    for (int i = 0; i < wineManager.grid.length; i++) {
+      for (int j = 0; j < wineManager.grid[i].length; j++) {
+        if (wineManager.grid[i][j].isEmpty) {
+          row = i;
+          col = j;
+          foundEmptyCell = true;
+          break;
+        }
+      }
+      if (foundEmptyCell) break;
+    }
+    
+    if (!foundEmptyCell) {
+      // No empty cell found, show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No empty cells available in your collection!'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    
+    // Set row and col to 0 to indicate this is from the add button
+    // This will be used in _showEmptyWineEditDialog to set the default source
+    row = 0;
+    col = 0;
+    
+    // Start photo capture for the found empty cell
+    _startWinePhotoCapture(context, wineManager, row, col);
   }
 }

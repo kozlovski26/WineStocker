@@ -12,29 +12,19 @@ class ShareDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 8),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[600],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.share),
-            title: const Text('Share via Other Apps'),
-            onTap: () {
-              Navigator.pop(context);
-              ShareHelper.shareWineList(wineManager);
-            },
-          ),
-          const SizedBox(height: 8),
-        ],
+    // Directly trigger the share functionality when the dialog is built
+    // Use a short delay to allow the dialog to build before triggering the share
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Navigator.pop(context);
+      ShareHelper.shareWineList(wineManager);
+    });
+
+    // Return a minimal loading indicator that will be shown briefly
+    return Container(
+      height: 100,
+      color: Colors.transparent,
+      child: const Center(
+        child: CircularProgressIndicator(),
       ),
     );
   }
