@@ -166,11 +166,6 @@ class WineGridScreenState extends State<WineGridScreen>
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.add),
-          tooltip: 'Add Wine',
-          onPressed: () => _startAddNewWine(context, wineManager),
-        ),
-        IconButton(
           icon: const Icon(Icons.wine_bar),
           onPressed: () => _showDrunkWines(context, wineManager),
         ),

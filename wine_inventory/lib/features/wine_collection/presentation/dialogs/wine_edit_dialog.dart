@@ -66,7 +66,18 @@ class WineEditDialogState extends State<WineEditDialog> {
     selectedCountry = widget.bottle.country;
     hasPhoto = widget.bottle.imagePath != null;
     isForTrade = widget.bottle.isForTrade;
+    
+    // Determine wine source automatically based on context
+    // Use the provided defaultSource if available (from DrunkWineDialog),
+    // otherwise use the bottle's existing source (for editing),
+    // or default to fridge if all else fails
     wineSource = widget.defaultSource ?? widget.bottle.source;
+    
+    // For new wines created from the drink list (row and col are -1),
+    // force the source to be drink list
+    if (widget.row == -1 && widget.col == -1 && !widget.isEdit) {
+      wineSource = WineSource.drinkList;
+    }
   }
 
   @override
@@ -280,67 +291,32 @@ class WineEditDialogState extends State<WineEditDialog> {
     );
   }
 
-  Widget _buildSourceSelector() {
+  Widget _buildSourceSection() {
+    // Instead of a selector, just display the current source as info text
+    final sourceText = wineSource == WineSource.drinkList ? 'Drink List' : 'Wine Fridge';
+    final sourceIcon = wineSource == WineSource.drinkList ? Icons.wine_bar : Icons.kitchen;
+    final sourceColor = wineSource == WineSource.drinkList ? Colors.amber[600] : Colors.teal[600];
+    
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.white24),
         borderRadius: BorderRadius.circular(12),
       ),
       margin: const EdgeInsets.symmetric(vertical: 12.0),
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Storage Location',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16.0,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8.0),
           Row(
             children: [
-              SizedBox(
-                width: 40,
-                child: Radio<WineSource>(
-                  value: WineSource.fridge,
-                  groupValue: wineSource,
-                  onChanged: (WineSource? value) {
-                    if (value != null) {
-                      setState(() => wineSource = value);
-                    }
-                  },
-                  activeColor: Colors.teal[400],
-                ),
-              ),
-              Flexible(
-                child: Text(
-                  'In Fridge',
-                  style: TextStyle(color: Colors.white),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 24.0),
-              SizedBox(
-                width: 40,
-                child: Radio<WineSource>(
-                  value: WineSource.drinkList,
-                  groupValue: wineSource,
-                  onChanged: (WineSource? value) {
-                    if (value != null) {
-                      setState(() => wineSource = value);
-                    }
-                  },
-                  activeColor: Colors.teal[400],
-                ),
-              ),
-              Flexible(
-                child: Text(
-                  'Drink List',
-                  style: TextStyle(color: Colors.white),
-                  overflow: TextOverflow.ellipsis,
+              Icon(sourceIcon, color: sourceColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Storage Location: $sourceText',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16.0,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
@@ -590,7 +566,7 @@ class WineEditDialogState extends State<WineEditDialog> {
           child: _buildWineTypeSelector(),
         ),
         const SizedBox(height: 16),
-        _buildSourceSelector(),
+        _buildSourceSection(),
         const SizedBox(height: 16),
         _buildTradeOption(),
       ],

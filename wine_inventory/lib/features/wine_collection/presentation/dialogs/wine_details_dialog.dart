@@ -1255,6 +1255,7 @@ class _WineDetailsDialogState extends State<WineDetailsDialog> {
         isDrunk: false,
         dateDrunk: null,
         dateAdded: DateTime.now(),
+        source: WineSource.fridge, // Always set the source to fridge when restoring
       );
 
       // Update grid

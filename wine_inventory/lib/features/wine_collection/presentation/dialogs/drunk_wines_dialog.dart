@@ -8,7 +8,10 @@ import '../../domain/models/wine_bottle.dart';
 import '../managers/wine_manager.dart';
 import '../../utils/wine_type_helper.dart';
 import './wine_details_dialog.dart';
+import './wine_edit_dialog.dart';
 import '../../../../core/models/currency.dart';
+import '../screens/wine_photo_screen.dart';
+import '../../services/gemini_service.dart';
 
 // Define the enum at the top level, outside any class
 enum SortCriteria { date, name, type, price }
@@ -264,6 +267,7 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
     
     // Check if wine has an event photo
     final hasEventPhoto = wine.metadata != null && wine.metadata!['eventPhotoUrl'] != null;
+    final eventPhotoUrl = hasEventPhoto ? wine.metadata!['eventPhotoUrl'] as String : null;
     
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -292,28 +296,117 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Wine image
-                Stack(
-                  children: [
-                    _buildWineImageSection(wine),
-                    if (hasEventPhoto)
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
+                // Wine and event photo images column
+                SizedBox(
+                  width: 50,
+                  child: Column(
+                    children: [
+                      // Wine bottle image
+                      Hero(
+                        tag: 'wine-image-${wine.hashCode}',
                         child: Container(
-                          padding: const EdgeInsets.all(4),
+                          width: 50,
+                          height: 80,
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
                             borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                          child: Icon(
-                            Icons.camera_alt,
-                            size: 14,
-                            color: Colors.amber[300],
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: wine.imagePath != null
+                                ? CachedNetworkImage(
+                                    imageUrl: wine.imagePath!,
+                                    fit: BoxFit.cover,
+                                    errorWidget: (context, url, error) => _buildPlaceholderImage(),
+                                    placeholder: (context, url) => _buildLoadingImage(),
+                                  )
+                                : _buildPlaceholderImage(),
                           ),
                         ),
                       ),
-                  ],
+                      
+                      // Event photo thumbnail
+                      if (hasEventPhoto)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Stack(
+                            children: [
+                              Container(
+                                width: 50,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.amber.withOpacity(0.5),
+                                    width: 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 2,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(7),
+                                  child: CachedNetworkImage(
+                                    imageUrl: eventPhotoUrl!,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => Container(
+                                      color: Colors.black26,
+                                      child: const Center(
+                                        child: SizedBox(
+                                          width: 15,
+                                          height: 15,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    errorWidget: (context, url, error) => Container(
+                                      color: Colors.black26,
+                                      child: Icon(
+                                        Icons.broken_image,
+                                        color: Colors.amber[300],
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber[900]!.withOpacity(0.8),
+                                    borderRadius: const BorderRadius.only(
+                                      topRight: Radius.circular(7),
+                                      bottomLeft: Radius.circular(7),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.photo_camera,
+                                    size: 10,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 12),
                 
@@ -323,41 +416,9 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Source icon and wine name
+                      // Wine name and date
                       Row(
                         children: [
-                          // Source icon - shows fridge icon if from fridge
-                          if (wine.source == WineSource.fridge)
-                            Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[700]?.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Icon(
-                                Icons.kitchen,
-                                size: 14,
-                                color: Colors.blue[300],
-                              ),
-                            ),
-                          
-                          // Event photo indicator for larger screens
-                          if (hasEventPhoto)
-                            Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.amber[900]?.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Icon(
-                                Icons.camera_alt,
-                                size: 14,
-                                color: Colors.amber[300],
-                              ),
-                            ),
-                          
                           // Wine name
                           Expanded(
                             child: Text(
@@ -501,37 +562,6 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
     );
   }
 
-  Widget _buildWineImageSection(WineBottle wine) {
-    return Hero(
-      tag: 'wine-image-${wine.hashCode}',
-      child: Container(
-        width: 50,
-        height: 80,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: wine.imagePath != null
-              ? CachedNetworkImage(
-                  imageUrl: wine.imagePath!,
-                  fit: BoxFit.cover,
-                  errorWidget: (context, url, error) => _buildPlaceholderImage(),
-                  placeholder: (context, url) => _buildLoadingImage(),
-                )
-              : _buildPlaceholderImage(),
-        ),
-      ),
-    );
-  }
-
   Widget _buildWineInfoSection(WineBottle wine, Color wineColor) {
     String? priceString;
     if (wine.price != null) {
@@ -541,54 +571,21 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            // Source icon - indicates if wine came from fridge or external source
-            Tooltip(
-              message: wine.source == WineSource.fridge ? 'From Wine Fridge' : 'External Source',
-              child: Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: wine.source == WineSource.fridge 
-                      ? Colors.blue[700]?.withOpacity(0.2) 
-                      : Colors.orange[700]?.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: wine.source == WineSource.fridge 
-                        ? Colors.blue[400]!.withOpacity(0.3) 
-                        : Colors.orange[400]!.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Icon(
-                  wine.source == WineSource.fridge 
-                      ? Icons.kitchen
-                      : Icons.location_on,
-                  size: 14,
-                  color: wine.source == WineSource.fridge 
-                      ? Colors.blue[300] 
-                      : Colors.orange[300],
-                ),
+        if (wine.dateDrunk != null)
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.grey[800]?.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Text(
+              DateFormat.yMd().format(wine.dateDrunk!),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[300],
               ),
             ),
-            if (wine.dateDrunk != null)
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[800]?.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Text(
-                  DateFormat.yMd().format(wine.dateDrunk!),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[300],
-                  ),
-                ),
-              ),
-          ],
-        ),
+          ),
         const SizedBox(height: 8),
         Text(
           wine.name ?? 'Unnamed Wine',
@@ -748,6 +745,112 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                       ],
                     ),
                   ),
+                ),
+                // Add button
+                IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red[900]?.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.add,
+                      color: Colors.red[300],
+                      size: 26,
+                    ),
+                  ),
+                  onPressed: () async {
+                    // Check if user is Pro, for AI recognition
+                    final isPro = await widget.wineManager.repository.isUserPro();
+                    
+                    // Navigate to WinePhotoScreen to take or select a photo
+                    final photoPath = await Navigator.push<String>(
+                      context,
+                      MaterialPageRoute(builder: (context) => WinePhotoScreen(isPro: isPro)),
+                    );
+                    
+                    // If user canceled or something went wrong
+                    if (photoPath == null || !mounted) return;
+                    
+                    // Process the image
+                    final File imageFile = File(photoPath);
+                    
+                    // Check if user is Pro for AI analysis
+                    if (isPro) {
+                      // Show loading indicator for Pro users
+                      _showLoadingDialog('Analyzing wine image...');
+                      
+                      // Get the API key
+                      const String geminiApiKey = 'AIzaSyDjrSPjrVEjf5zuLfGlMHn3Ysda8lLz1kQ';
+                      
+                      // Create GeminiService and analyze image
+                      final geminiService = GeminiService(
+                        apiKey: geminiApiKey,
+                        modelName: 'gemini-2.0-flash',
+                      );
+                      
+                      try {
+                        final analyzedWine = await geminiService.analyzeWineImage(imageFile);
+                        
+                        // Close loading dialog
+                        if (mounted) Navigator.of(context).pop();
+                        
+                        if (analyzedWine == null) {
+                          // Analysis failed, show the empty edit dialog
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Could not fully analyze the wine label. Please fill in any missing details.',
+                                ),
+                                backgroundColor: Colors.orange[700],
+                                behavior: SnackBarBehavior.floating,
+                                duration: const Duration(seconds: 4),
+                              ),
+                            );
+                            
+                            _showEmptyWineEditDialog(imageFile);
+                          }
+                        } else {
+                          // Analysis succeeded, show success message
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Wine label analyzed successfully! Please verify and adjust details if needed.',
+                                ),
+                                backgroundColor: Colors.green[700],
+                                behavior: SnackBarBehavior.floating,
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                          
+                          // Show edit dialog with pre-filled data
+                          _showWineEditDialogWithData(analyzedWine, imageFile);
+                        }
+                      } catch (e) {
+                        // Close loading dialog
+                        if (mounted) Navigator.of(context).pop();
+                        
+                        // Show error and continue with empty edit dialog
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error analyzing wine: ${e.toString()}'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          
+                          _showEmptyWineEditDialog(imageFile);
+                        }
+                      }
+                    } else {
+                      // Non-Pro users skip AI analysis and go directly to manual entry
+                      _showEmptyWineEditDialog(imageFile);
+                    }
+                  },
                 ),
               ],
             ),
@@ -1259,7 +1362,6 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
         isDrunk: false,
         dateDrunk: null,
         dateAdded: DateTime.now(),
-        source: WineSource.fridge,
       );
 
       // Update grid
@@ -1293,5 +1395,106 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
         );
       }
     }
+  }
+
+  void _showLoadingDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.black87,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.tealAccent),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                message,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Our AI is examining the wine label to identify details such as name, winery, year, and type.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white70,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showEmptyWineEditDialog(File imageFile) {
+    if (!mounted) return;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (context) => WineEditDialog(
+        bottle: WineBottle(
+          imagePath: imageFile.path,
+          source: WineSource.drinkList,
+          dateAdded: DateTime.now(),
+        ),
+        wineManager: widget.wineManager,
+        row: -1, // Not in grid
+        col: -1, // Not in grid
+        tempImageFile: imageFile,
+        defaultSource: WineSource.drinkList, // Force drink list source
+      ),
+    ).then((_) {
+      // Refresh the list when returning from add
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  void _showWineEditDialogWithData(WineBottle analyzedWine, File imageFile) {
+    if (!mounted) return;
+    
+    // Update the analyzed wine with the image path and ensure drink list source
+    final bottleToEdit = analyzedWine.copyWith(
+      imagePath: imageFile.path,
+      source: WineSource.drinkList,
+    );
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (context) => WineEditDialog(
+        bottle: bottleToEdit,
+        wineManager: widget.wineManager,
+        row: -1, // Not in grid
+        col: -1, // Not in grid
+        isEdit: false,
+        tempImageFile: imageFile,
+        defaultSource: WineSource.drinkList, // Force drink list source
+      ),
+    ).then((_) {
+      // Refresh the list when returning from add
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 }
