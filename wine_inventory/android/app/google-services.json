@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "377181264365",
+    "project_id": "winestocker-30a94",
+    "storage_bucket": "winestocker-30a94.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:377181264365:android:3c60c4e5ee88693f5d6fe4",
+        "android_client_info": {
+          "package_name": "com.winestocker.inventory"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCHNadjka48d3luVvwHmLZuc8-mPb89Arc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

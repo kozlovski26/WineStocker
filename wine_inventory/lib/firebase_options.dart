@@ -24,10 +24,7 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for android - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return android;
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
@@ -61,4 +58,11 @@ class DefaultFirebaseOptions {
     iosBundleId: 'com.kozlovski.winestock',
   );
 
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyCHNadjka48d3luVvwHmLZuc8-mPb89Arc',
+    appId: '1:377181264365:android:3c60c4e5ee88693f5d6fe4',
+    messagingSenderId: '377181264365',
+    projectId: 'winestocker-30a94',
+    storageBucket: 'winestocker-30a94.firebasestorage.app',
+  );
 }
