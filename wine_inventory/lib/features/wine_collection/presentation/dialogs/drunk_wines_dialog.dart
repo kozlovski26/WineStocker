@@ -84,7 +84,9 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
                         ),
                       ),
                       direction: DismissDirection.endToStart,
-                      onDismissed: (direction) => _handleDismiss(context, wine),
+                      confirmDismiss: (direction) async {
+                        return await _showDeleteConfirmation(context, wine);
+                      },
                       child: _buildWineCard(context, wine),
                     );
                   },
@@ -960,93 +962,69 @@ class _DrunkWinesDialogState extends State<DrunkWinesDialog> {
     });
   }
 
-  void _handleDismiss(BuildContext context, WineBottle wine) {
-    showDialog(
+  Future<bool> _showDeleteConfirmation(BuildContext context, WineBottle wine) async {
+    return await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
-        bool isProcessing = false;
-        
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: Colors.grey[900],
-              title: const Text(
-                'Delete from History',
-                style: TextStyle(color: Colors.white),
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text(
+            'Delete from History',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'Are you sure you want to remove this wine from your drinking history?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red[700],
               ),
-              content: const Text(
-                'Are you sure you want to remove this wine from your drinking history?',
-                style: TextStyle(color: Colors.white70),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isProcessing 
-                    ? null 
-                    : () {
-                        Navigator.pop(context);
-                        // Rebuild the list to restore the item
-                        this.setState(() {});
-                      },
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.red[700],
-                  ),
-                  onPressed: isProcessing
-                    ? null
-                    : () async {
-                        setState(() => isProcessing = true);
-                        try {
-                          await widget.wineManager.removeDrunkWine(wine);
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Wine removed from history'),
-                                backgroundColor: Colors.red[900],
-                                behavior: SnackBarBehavior.floating,
-                                margin: const EdgeInsets.all(16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error: ${e.toString()}'),
-                                backgroundColor: Colors.red[900],
-                                behavior: SnackBarBehavior.floating,
-                                margin: const EdgeInsets.all(16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                  child: isProcessing
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              onPressed: () async {
+                try {
+                  await widget.wineManager.removeDrunkWine(wine);
+                  if (context.mounted) {
+                    Navigator.pop(context, true);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Wine removed from history'),
+                        backgroundColor: Colors.red[900],
+                        behavior: SnackBarBehavior.floating,
+                        margin: const EdgeInsets.all(16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      )
-                    : const Text('Delete'),
-                ),
-              ],
-            );
-          },
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    Navigator.pop(context, false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: ${e.toString()}'),
+                        backgroundColor: Colors.red[900],
+                        behavior: SnackBarBehavior.floating,
+                        margin: const EdgeInsets.all(16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Delete'),
+            ),
+          ],
         );
       },
-    );
+    ) ?? false;
   }
 
   void _showGridSelectionDialog(BuildContext context, WineBottle wine) {
