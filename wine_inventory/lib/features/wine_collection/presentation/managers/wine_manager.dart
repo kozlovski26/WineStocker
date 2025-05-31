@@ -202,12 +202,14 @@ class WineManager extends ChangeNotifier {
         }
       }
 
+      // Add to local drunk wines list
       drunkWines.add(drunkBottle);
+      // Remove from grid
       _grid[row][col] = WineBottle();
       
       await Future.wait([
         repository.saveWineGrid(_grid),
-        repository.saveDrunkWines(drunkWines)
+        repository.saveDrunkWines([drunkBottle]) // Only save the new drunk wine
       ]);
       
       _updateStatistics();
@@ -254,7 +256,7 @@ class WineManager extends ChangeNotifier {
       }
       
       drunkWines.add(bottle);
-      await repository.saveDrunkWines(drunkWines);
+      await repository.saveDrunkWines([bottle]); // Only save the new drunk wine
       
       _isLoading = false;
       notifyListeners();
@@ -277,9 +279,11 @@ class WineManager extends ChangeNotifier {
           wine.dateDrunk == updatedWine.dateDrunk);
       
       if (index != -1) {
+        final oldWine = drunkWines[index];
         // Replace the wine at the found index
         drunkWines[index] = updatedWine;
-        await repository.saveDrunkWines(drunkWines);
+        // Update in repository using the new method
+        await repository.updateDrunkWine(oldWine, updatedWine);
       } else {
         throw Exception('Wine not found in drunk wines list');
       }
@@ -466,11 +470,8 @@ class WineManager extends ChangeNotifier {
         }
       }
       
-      // Save wine grid and drunk wines
-      await Future.wait([
-        repository.saveWineGrid(_grid),
-        repository.saveDrunkWines(drunkWines)
-      ]);
+      // Only save wine grid - drunk wines are managed separately
+      await repository.saveWineGrid(_grid);
       
       _updateStatistics();
       
@@ -547,13 +548,13 @@ class WineManager extends ChangeNotifier {
       // Update grid
       _grid[targetRow][targetCol] = restoredWine;
       
-      // Remove from drunk wines
+      // Remove from drunk wines list locally
       drunkWines.remove(wine);
       
-      // Save changes
+      // Save changes - save grid and remove from drunk wines in Firestore
       await Future.wait([
         repository.saveWineGrid(_grid),
-        repository.saveDrunkWines(drunkWines)
+        repository.removeDrunkWine(wine)
       ]);
       
       _updateStatistics();

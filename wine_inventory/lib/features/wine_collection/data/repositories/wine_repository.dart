@@ -289,18 +289,43 @@ class WineRepository {
   // Drunk Wines Operations
   Future<void> saveDrunkWines(List<WineBottle> drunkWines) async {
     try {
+      // Get existing drunk wines to avoid duplicates
+      final existingSnapshot = await _drunkWines.get();
+      final existingWines = <String, String>{}; // Map of wine key to document ID
+      
+      for (var doc in existingSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data['isDeleted'] != true) {
+          // Create a unique key for each wine based on name, winery, and drunk date
+          final name = data['name'] ?? '';
+          final winery = data['winery'] ?? '';
+          final drunkAt = data['drunkAt'] ?? '';
+          final key = '$name-$winery-$drunkAt';
+          existingWines[key] = doc.id;
+        }
+      }
+      
       final writeBatch = _firestore.batch();
 
       for (var bottle in drunkWines) {
-        writeBatch.set(_drunkWines.doc(), {
-          ...bottle.toJson(),
-          'isDrunk': true,
-          'isDeleted': false,
-          'userId': userId,
-          'dateDrunk': bottle.dateDrunk?.toIso8601String(),
-          'drunkAt': bottle.dateDrunk?.toIso8601String() ?? DateTime.now().toIso8601String(),
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+        // Create a unique key for this wine
+        final name = bottle.name ?? '';
+        final winery = bottle.winery ?? '';
+        final drunkAt = bottle.dateDrunk?.toIso8601String() ?? DateTime.now().toIso8601String();
+        final key = '$name-$winery-$drunkAt';
+        
+        // Only add if this wine doesn't already exist
+        if (!existingWines.containsKey(key)) {
+          writeBatch.set(_drunkWines.doc(), {
+            ...bottle.toJson(),
+            'isDrunk': true,
+            'isDeleted': false,
+            'userId': userId,
+            'dateDrunk': bottle.dateDrunk?.toIso8601String(),
+            'drunkAt': drunkAt,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
       }
 
       await writeBatch.commit();
@@ -353,6 +378,40 @@ class WineRepository {
       await batch.commit();
     } catch (e) {
       print('Error removing drunk wine: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateDrunkWine(WineBottle oldWine, WineBottle updatedWine) async {
+    try {
+      // Find the document to update
+      final oldName = oldWine.name ?? '';
+      final oldWinery = oldWine.winery ?? '';
+      final oldDrunkAt = oldWine.dateDrunk?.toIso8601String() ?? '';
+      
+      final snapshot = await _drunkWines
+          .where('name', isEqualTo: oldName)
+          .where('winery', isEqualTo: oldWinery)
+          .where('drunkAt', isEqualTo: oldDrunkAt)
+          .where('isDeleted', isEqualTo: false)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        // Update the first matching document
+        await snapshot.docs.first.reference.update({
+          ...updatedWine.toJson(),
+          'isDrunk': true,
+          'isDeleted': false,
+          'userId': userId,
+          'dateDrunk': updatedWine.dateDrunk?.toIso8601String(),
+          'drunkAt': updatedWine.dateDrunk?.toIso8601String() ?? DateTime.now().toIso8601String(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        throw Exception('Drunk wine not found for update');
+      }
+    } catch (e) {
+      print('Error updating drunk wine: $e');
       rethrow;
     }
   }
