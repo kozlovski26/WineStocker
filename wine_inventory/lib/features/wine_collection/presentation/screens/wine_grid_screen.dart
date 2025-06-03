@@ -76,11 +76,13 @@ class WineGridScreenState extends State<WineGridScreen>
   Future<void> _checkProStatus() async {
     final isPro = await _repository.isUserPro();
     final canBrowseCollections = await _repository.canBrowseAllCollections();
+    print('DEBUG: _checkProStatus - isPro: $isPro, canBrowseCollections: $canBrowseCollections');
     if (mounted) {
       setState(() {
         _isPro = isPro;
         _canBrowseCollections = canBrowseCollections;
       });
+      print('DEBUG: _checkProStatus - State updated - _isPro: $_isPro, _canBrowseCollections: $_canBrowseCollections');
     }
   }
 

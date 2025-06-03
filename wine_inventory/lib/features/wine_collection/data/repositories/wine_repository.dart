@@ -530,10 +530,17 @@ class WineRepository {
       
       if (userDoc.exists) {
         final userData = userDoc.data();
+        print('DEBUG: canBrowseAllCollections - userData: $userData');
+        print('DEBUG: canBrowseAllCollections - contains key: ${userData?.containsKey('canBrowseCollections')}');
+        print('DEBUG: canBrowseAllCollections - field value: ${userData?['canBrowseCollections']}');
+        
         // Only check the new field - no fallback to isPro
         // This ensures existing Pro users must explicitly enable collection browsing
-        return userData?['canBrowseCollections'] == true;
+        final result = userData?['canBrowseCollections'] == true;
+        print('DEBUG: canBrowseAllCollections - result: $result');
+        return result;
       }
+      print('DEBUG: canBrowseAllCollections - user doc does not exist, returning false');
       return false;
     } catch (e) {
       print('Error checking collection browse status: $e');
