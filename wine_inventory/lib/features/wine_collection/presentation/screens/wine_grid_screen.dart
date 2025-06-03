@@ -42,6 +42,7 @@ class WineGridScreenState extends State<WineGridScreen>
   late WineRepository _repository; // Change this to late
   late WineManager _wineManager;
   bool _isPro = false;
+  bool _canBrowseCollections = false;
   bool _isFabOpen = false;
   
 
@@ -74,9 +75,11 @@ class WineGridScreenState extends State<WineGridScreen>
 
   Future<void> _checkProStatus() async {
     final isPro = await _repository.isUserPro();
+    final canBrowseCollections = await _repository.canBrowseAllCollections();
     if (mounted) {
       setState(() {
         _isPro = isPro;
+        _canBrowseCollections = canBrowseCollections;
       });
     }
   }
@@ -1301,7 +1304,7 @@ void _showBottleOptionsMenu(
             ],
           ),
         ),
-        if (_isPro)
+        if (_canBrowseCollections)
           const PopupMenuItem<String>(
             value: 'browse',
             child: Row(

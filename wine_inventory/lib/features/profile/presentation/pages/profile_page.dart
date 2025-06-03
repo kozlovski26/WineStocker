@@ -28,6 +28,9 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _profileImageUrl;
   File? _imageFile;
   final _auth = FirebaseAuth.instance;
+  bool _isAdmin = false;
+  bool _isPro = false;
+  bool _canBrowseCollections = false;
   
   @override
   void initState() {
@@ -39,10 +42,16 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _isLoading = true);
     try {
       final userData = await widget.repository.getUserData();
+      final isPro = await widget.repository.isUserPro();
+      final canBrowseCollections = await widget.repository.canBrowseAllCollections();
+      
       setState(() {
         _firstNameController.text = userData['firstName'] ?? '';
         _lastNameController.text = userData['lastName'] ?? '';
         _profileImageUrl = userData['photoURL'];
+        _isAdmin = userData['isAdmin'] == true;
+        _isPro = isPro;
+        _canBrowseCollections = canBrowseCollections;
       });
     } catch (e) {
       print('Error loading user data: $e');
@@ -182,6 +191,85 @@ class _ProfilePageState extends State<ProfilePage> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  Widget _buildAdminControls() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Current User Permissions',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            
+            // Pro Status
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Pro Status'),
+                Switch(
+                  value: _isPro,
+                  onChanged: (value) async {
+                    try {
+                      await widget.repository.toggleUserProStatus(
+                        widget.repository.userId,
+                        value,
+                      );
+                      setState(() => _isPro = value);
+                      _showSuccessSnackBar(
+                        value ? 'Pro status enabled' : 'Pro status disabled',
+                      );
+                    } catch (e) {
+                      _showErrorSnackBar('Error updating Pro status');
+                    }
+                  },
+                ),
+              ],
+            ),
+            
+            // Collection Browsing Status
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Browse Collections'),
+                Switch(
+                  value: _canBrowseCollections,
+                  onChanged: (value) async {
+                    try {
+                      await widget.repository.toggleCollectionBrowsingStatus(
+                        widget.repository.userId,
+                        value,
+                      );
+                      setState(() => _canBrowseCollections = value);
+                      _showSuccessSnackBar(
+                        value 
+                          ? 'Collection browsing enabled' 
+                          : 'Collection browsing disabled',
+                      );
+                    } catch (e) {
+                      _showErrorSnackBar('Error updating collection browsing');
+                    }
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
       ),
     );
   }
@@ -330,6 +418,17 @@ class _ProfilePageState extends State<ProfilePage> {
                       onPressed: _updatePassword,
                       child: const Text('Update Password'),
                     ),
+                    
+                    // Admin Section
+                    if (_isAdmin) ...[
+                      const Divider(height: 48),
+                      Text(
+                        'Admin Settings',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildAdminControls(),
+                    ],
                   ],
                 ),
               ),

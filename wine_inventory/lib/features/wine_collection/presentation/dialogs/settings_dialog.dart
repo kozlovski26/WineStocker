@@ -26,6 +26,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   bool _isPro = false;
   Currency _selectedCurrency = Currency.USD;
   bool _isLoading = false;
+  bool _canBrowseCollections = false;
 
   @override
   void initState() {
@@ -39,8 +40,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   Future<void> _loadProStatus() async {
     final isPro = await widget.wineManager.repository.isUserPro();
+    final canBrowseCollections = await widget.wineManager.repository.canBrowseAllCollections();
     if (mounted) {
-      setState(() => _isPro = isPro);
+      setState(() {
+        _isPro = isPro;
+        _canBrowseCollections = canBrowseCollections;
+      });
     }
   }
 
@@ -364,6 +369,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
             ],
             const SizedBox(height: 24),
             _buildCurrencySelector(),
+            const SizedBox(height: 24),
+            _buildCollectionBrowsingToggle(),
           ],
         ),
       ),
@@ -444,6 +451,78 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 }
               },
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCollectionBrowsingToggle() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Browse All Collections',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.black26,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white24),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Allow access to browse all users\' wine collections',
+                  style: TextStyle(
+                    color: Colors.grey[300],
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              Switch(
+                value: _canBrowseCollections,
+                onChanged: (value) async {
+                  try {
+                    setState(() => _isLoading = true);
+                    await widget.wineManager.repository.toggleCollectionBrowsingStatus(
+                      widget.wineManager.repository.userId,
+                      value,
+                    );
+                    setState(() => _canBrowseCollections = value);
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          value 
+                            ? 'Collection browsing enabled' 
+                            : 'Collection browsing disabled'
+                        ),
+                        backgroundColor: Colors.green[400],
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error updating setting: ${e.toString()}'),
+                        backgroundColor: Colors.red[400],
+                      ),
+                    );
+                  } finally {
+                    setState(() => _isLoading = false);
+                  }
+                },
+              ),
+            ],
           ),
         ),
       ],

@@ -519,6 +519,55 @@ class WineRepository {
     }
   }
 
+  /// Check if user can browse all users' collections
+  /// This is separate from isPro status and provides its own functionality
+  Future<bool> canBrowseAllCollections() async {
+    try {
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data();
+        // Only check the new field - no fallback to isPro
+        // This ensures existing Pro users must explicitly enable collection browsing
+        return userData?['canBrowseCollections'] == true;
+      }
+      return false;
+    } catch (e) {
+      print('Error checking collection browse status: $e');
+      return false;
+    }
+  }
+
+  /// Toggle user's ability to browse all collections
+  Future<void> toggleCollectionBrowsingStatus(String userId, bool canBrowse) async {
+    try {
+      // First check if the user document exists
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      
+      if (!userDoc.exists) {
+        // Create user document with default fields if it doesn't exist
+        await _firestore.collection('users').doc(userId).set({
+          'userId': userId,
+          'canBrowseCollections': canBrowse,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Update existing document
+        await _firestore.collection('users').doc(userId).update({
+          'canBrowseCollections': canBrowse,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      print('Error toggling collection browsing status: $e');
+      rethrow;
+    }
+  }
+
   // User Profile Operations
   Future<Map<String, dynamic>> getUserData() async {
     try {
